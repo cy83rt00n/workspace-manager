@@ -42,7 +42,23 @@ if [ -f "$HOME/.wsm-manager" ]; then
     rm -f "$HOME/.wsm-manager"
 fi
 
-# 3. Remove deployed repo directory
+# 3. Show how to remove installed system dependencies
+DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"
+if [ -f "$DEPS_FILE" ]; then
+    echo ""
+    echo "The following packages were installed by WSM installer:"
+    while read -r pkg; do
+        echo "  - $pkg"
+    done < "$DEPS_FILE"
+    echo ""
+    echo "To remove them you can use your package manager, e.g.:"
+    echo "  sudo apt-get remove <package>     (Debian/Ubuntu)"
+    echo "  sudo dnf remove <package>         (Fedora/RHEL)"
+    echo "  sudo pacman -R <package>          (Arch)"
+    echo "  brew uninstall <package>          (macOS)"
+fi
+
+# 4. Remove deployed repo directory
 if [ -d "$TARGET_REPO_DIR" ]; then
     DEL_REPO="n"
     if $INTERACTIVE; then
@@ -60,7 +76,7 @@ else
     echo "$TARGET_REPO_DIR not found — skipped."
 fi
 
-# 4. Optionally remove configs
+# 5. Optionally remove configs
 if [ -d "$CONFIG_DIR" ]; then
     DEL_CONF="n"
     if $INTERACTIVE; then
