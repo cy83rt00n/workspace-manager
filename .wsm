@@ -4,7 +4,7 @@
 _wsm_parse_val() {
     local key="$1"
     local file="$2"
-    [[ -f "$file" ]] && grep -Po "(?<=^${key}\s*=\s*\")[^\"]*" "$file" || echo ""
+    [[ -f "$file" ]] && grep -Po "^${key}\s*=\s*\"\K[^\"]*" "$file" || echo ""
 }
 
 # Сетевой резолв и проверка доступности порта SSH вместо уязвимого ping
