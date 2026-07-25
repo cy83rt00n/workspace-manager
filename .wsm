@@ -62,8 +62,11 @@ wsm() {
             mkdir -p "$local_mount"
             echo "Mounting $ssh_alias to $local_mount..."
             sshfs "$remote_path" "$local_mount" \
-                -o cache=yes,cache_stat_timeout=600,cache_dir_timeout=600,cache_link_timeout=600 \
-                -o compression=yes,reconnect,ServerAliveInterval=15
+                -o cache=yes,cache_stat_timeout=1200,cache_dir_timeout=1200,cache_link_timeout=1200 \
+                -o compression=yes,reconnect,ServerAliveInterval=15 \
+                -o kernel_cache,large_read,max_readahead=131072 \
+                -o noauto_cache,no_readahead=no \
+                -o defer_permissions,entry_timeout=1200,negative_timeout=1200,async_read
             ;;
 
         run|r)
