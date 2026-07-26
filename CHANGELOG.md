@@ -19,8 +19,8 @@ Commits since `origin/main`:
 
 - **`demo.conf` → `demo.config.toml`** — Renamed demo config to `.toml` extension
 - **`.gitignore`** — Added (Python cache, swap files, IDE dirs, AGENT.md, TASKS.md)
-- **`AGENT.md`** — Added and updated agent operational rules
-- **`TASKS.md`** — Added task tracking file, all 6 tasks completed
+- **`AGENT.md`** — Added and updated agent operational rules; removed from git tracking (now in `.gitignore`)
+- **`TASKS.md`** — Added task tracking file, all tasks completed; removed from git tracking (now in `.gitignore`)
 - **`CHANGELOG.md`** — Added project changelog
 - **`__pycache__/`** — Removed orphan Python bytecode
 
