@@ -19,11 +19,9 @@ echo ""
 # 1. Remove shell hooks
 remove_hook() {
     local rc_file="$1"
-    if [ -f "$rc_file" ]; then
-        if grep -q ">>> WSM BEGIN >>>" "$rc_file" 2>/dev/null; then
-            echo "Removing WSM hook from $rc_file..."
-            sed -i '/>>> WSM BEGIN >>>/,/<<< WSM END <<</d' "$rc_file"
-        fi
+    if [ -f "$rc_file" ] && grep -q ">>> WSM BEGIN >>>" "$rc_file" 2>/dev/null; then
+        echo "Removing WSM hook from $rc_file..."
+        sed -i '/>>> WSM BEGIN >>>/,/<<< WSM END <<</d' "$rc_file"
     fi
 }
 
