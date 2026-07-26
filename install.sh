@@ -2,34 +2,28 @@
 set -euo pipefail
 
 TARGET_REPO_DIR="$HOME/.workspace-manager"
+BIN_DIR="$HOME/.local/bin"
 DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"
 
 echo "Initializing Workspace Manager installation pipeline..."
 
-# ── Проверка и установка зависимостей ──────────────────────────
+# ── Dependency check & install ──────────────────────────────────
 
 REQUIRED_PKGS=(
     "sshfs:FUSE-based SSH filesystem"
     "nc:netcat / TCP connectivity check"
+    "python3:Python 3 interpreter"
 )
 
-# Базовые утилиты (должны быть в системе, предупреждаем если нет)
 BASE_UTILS=("ssh" "ssh-keygen" "mountpoint" "fuser" "umount")
 
 detect_pkg_manager() {
-    if command -v apt-get &>/dev/null; then
-        echo "apt"
-    elif command -v dnf &>/dev/null; then
-        echo "dnf"
-    elif command -v yum &>/dev/null; then
-        echo "yum"
-    elif command -v pacman &>/dev/null; then
-        echo "pacman"
-    elif command -v brew &>/dev/null; then
-        echo "brew"
-    else
-        echo ""
-    fi
+    if command -v apt-get &>/dev/null; then echo "apt"
+    elif command -v dnf &>/dev/null; then echo "dnf"
+    elif command -v yum &>/dev/null; then echo "yum"
+    elif command -v pacman &>/dev/null; then echo "pacman"
+    elif command -v brew &>/dev/null; then echo "brew"
+    else echo ""; fi
 }
 
 pkg_install_cmd() {
@@ -59,6 +53,13 @@ pkg_name() {
                 pacman) echo "sshfs" ;;
                 brew)   echo "sshfs" ;;
             esac ;;
+        python3)
+            case "$PKG_MANAGER" in
+                apt)    echo "python3" ;;
+                dnf|yum) echo "python3" ;;
+                pacman) echo "python" ;;
+                brew)   echo "python3" ;;
+            esac ;;
     esac
 }
 
@@ -82,7 +83,7 @@ for entry in "${REQUIRED_PKGS[@]}"; do
             eval "$cmd"
             INSTALLED_DEPS+=("$pkg")
         else
-            echo "       WARNING: No supported package manager found. Install '$util' manually."
+            echo "       WARNING: No supported package manager. Install '$util' manually."
         fi
     fi
 done
@@ -95,16 +96,16 @@ for util in "${BASE_UTILS[@]}"; do
     fi
 done
 
-# Сохраняем список установленных нами пакетов для деинсталлера
 if [ ${#INSTALLED_DEPS[@]} -gt 0 ]; then
     printf '%s\n' "${INSTALLED_DEPS[@]}" > "$DEPS_FILE"
 fi
 
 echo ""
-# ── Клонирование / копирование ──────────────────────────────────
+
+# ── Deploy ──────────────────────────────────────────────────────
 
 if [ ! -t 0 ]; then
-    echo "[Network Mode] Cloning repository from upstream remote..."
+    echo "[Network Mode] Cloning repository..."
     if [ -d "$TARGET_REPO_DIR" ]; then
         cd "$TARGET_REPO_DIR" && git pull
     else
@@ -117,17 +118,22 @@ else
     cp -r "$CURRENT_SOURCE_DIR"/* "$TARGET_REPO_DIR/"
 fi
 
-# ── Развёртывание ───────────────────────────────────────────────
+# ── Install executables ─────────────────────────────────────────
 
-cp "$TARGET_REPO_DIR/.wsm" "$HOME/.wsm"
-cp "$TARGET_REPO_DIR/.wsm-manager" "$HOME/.wsm-manager"
+mkdir -p "$BIN_DIR"
+chmod +x "$TARGET_REPO_DIR/wsm"
+chmod +x "$TARGET_REPO_DIR/wsm-tui"
+ln -sf "$TARGET_REPO_DIR/wsm" "${BIN_DIR}/wsm"
+ln -sf "$TARGET_REPO_DIR/wsm-tui" "${BIN_DIR}/wsm-tui"
+
+# ── Shell PATH hook ──────────────────────────────────────────────
 
 inject_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if ! grep -q "source \$HOME/.wsm" "$rc_file"; then
-            echo -e "\n# Workspace Manager Hook\nif [ -f \"\$HOME/.wsm\" ]; then source \"\$HOME/.wsm\"; fi" >> "$rc_file"
-            echo "Hook injected successfully into $rc_file"
+        if ! grep -q "export PATH=\"\$HOME/.local/bin:\$PATH\"" "$rc_file"; then
+            echo -e "\n# Workspace Manager — ensure ~/.local/bin in PATH\nexport PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$rc_file"
+            echo "Hook injected into $rc_file"
         fi
     fi
 }
@@ -137,8 +143,8 @@ inject_hook "$HOME/.zshrc"
 
 echo "=========================================================="
 echo "Installation complete!"
-echo "Please reload your profile: 'source ~/.bashrc' or 'source ~/.zshrc'"
-echo "Commands now available:"
-echo "  -> wsm [command] [project]  (CLI Utility)"
-echo "  -> wsm-manager              (Interactive Configuration Menu)"
+echo "Reload: source ~/.bashrc  (or: source ~/.zshrc)"
+echo "Commands:"
+echo "  wsm       [command] [project]   CLI"
+echo "  wsm-tui                         Interactive TUI"
 echo "=========================================================="
