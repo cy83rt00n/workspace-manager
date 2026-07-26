@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WSM Workspace Manager — interactive curses TUI."""
+"""WSM Workspace Manager — interactive curses TUI (MC / Norton style)."""
 
 import curses
 import os
@@ -11,9 +11,9 @@ from pathlib import Path
 CONF_DIR = Path.home() / '.config' / 'workspace'
 VERSION = '2.0.0'
 
+# ── Shared helpers ────────────────────────────────────────────────
 
 def parse_toml(filepath, key):
-    """Parse TOML key = "value" from config file."""
     try:
         with open(filepath) as f:
             for line in f:
@@ -26,14 +26,12 @@ def parse_toml(filepath, key):
 
 
 def is_mounted(path):
-    """Check if path is a mountpoint."""
     return subprocess.run(
         ['mountpoint', '-q', path], capture_output=True
     ).returncode == 0
 
 
 def load_projects():
-    """Load all projects with their config and mount status."""
     projects = []
     if not CONF_DIR.exists():
         return projects
@@ -55,7 +53,6 @@ def load_projects():
 
 
 def wsm_cli(action, project):
-    """Call wsm CLI as subprocess."""
     wsm_path = Path(__file__).parent / 'wsm'
     result = subprocess.run(
         [str(wsm_path), action, project],
@@ -64,368 +61,530 @@ def wsm_cli(action, project):
     return result.stdout, result.stderr, result.returncode
 
 
+# ── Box drawing helpers ────────────────────────────────────────────
+
+# Unicode box-drawing characters
+HL = '─'; VL = '│'
+UL = '┌'; UR = '┐'; LL = '└'; LR = '┘'
+LT = '├'; RT = '┤'; TT = '┬'; BT = '┴'; PL = '┼'
+
+
+def draw_box(win, y, x, h, w, title='', color=0):
+    """Draw a bordered box.  Returns (inner_y, inner_x, inner_h, inner_w)."""
+    # corners
+    win.addstr(y, x, UL, color)
+    win.addstr(y, x + w - 1, UR, color)
+    win.addstr(y + h - 1, x, LL, color)
+    win.addstr(y + h - 1, x + w - 1, LR, color)
+    # horizontal borders
+    win.addstr(y, x + 1, HL * (w - 2), color)
+    win.addstr(y + h - 1, x + 1, HL * (w - 2), color)
+    # vertical borders
+    for i in range(1, h - 1):
+        win.addstr(y + i, x, VL, color)
+        win.addstr(y + i, x + w - 1, VL, color)
+    # title
+    if title:
+        t = f' {title} '
+        tx = x + (w - len(t)) // 2
+        win.addstr(y, tx, t, color | curses.A_BOLD)
+    return (y + 1, x + 1, h - 2, w - 2)
+
+
+def draw_vdivider(win, y, x, h, color=0):
+    """Draw T-junctions at top/bottom and a vertical divider."""
+    win.addstr(y, x, TT, color)
+    win.addstr(y + h - 1, x, BT, color)
+    for i in range(1, h - 1):
+        win.addstr(y + i, x, VL, color)
+
+
+def draw_bar(win, y, x, w, color=0):
+    """Draw a horizontal bar with L/R T-junctions (for F-keys row)."""
+    win.addstr(y, x, LT, color)
+    win.addstr(y, x + w - 1, RT, color)
+    win.addstr(y, x + 1, HL * (w - 2), color)
+
+
+def safe_addstr(win, y, x, text, color=0):
+    """Add string, truncating to window bounds."""
+    h, w = win.getmaxyx()
+    if y < 0 or y >= h or x >= w:
+        return
+    text = text[:w - x - 1]
+    if text:
+        win.addstr(y, x, text, color)
+
+
+# ── Dialogs ────────────────────────────────────────────────────────
+
 def create_config_dialog(stdscr):
-    """Interactive dialog to create a new project config."""
     h, w = stdscr.getmaxyx()
-    win = curses.newwin(12, 60, (h - 12) // 2, (w - 60) // 2)
+    dh, dw = 14, 60
+    win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
     win.keypad(True)
     curses.echo()
     curses.curs_set(1)
 
-    fields = [
-        ('Project alias:', 30),
-        ('Remote path (alias:/path):', 50),
-        ('Local mount:', 50),
-        ('Editor command:', 20),
-    ]
+    fields = ['Project alias:', 'Remote path (alias:/path):',
+              'Local mount:', 'Editor command:']
     values = ['', '', '', 'zed']
-    current = 0
+    cur = 0
 
     while True:
-        win.clear()
-        win.box()
-        win.addstr(0, 2, ' Create Project Config ', curses.A_BOLD)
-        win.addstr(10, 2, ' Tab:next  Enter:save  Esc:cancel ')
+        win.erase()
+        draw_box(win, 0, 0, dh, dw, 'Create Project Config', curses.color_pair(3))
+        safe_addstr(win, dh - 2, 2, 'Tab:next  Enter:save  Esc:cancel')
 
-        for i, (label, maxlen) in enumerate(fields):
-            color = curses.A_REVERSE if i == current else curses.A_NORMAL
-            win.addstr(2 + i * 2, 3, label)
-            display = values[i][:maxlen]
-            if i == current:
-                display += '_'
-            win.addstr(3 + i * 2, 3, f'  {display}', color)
+        for i, label in enumerate(fields):
+            y = 2 + i * 3
+            safe_addstr(win, y, 3, label)
+            display = values[i][:dw - 8]
+            if i == cur:
+                display += '█'
+            attr = curses.A_REVERSE if i == cur else 0
+            safe_addstr(win, y + 1, 3, f'  {display}', attr)
 
         win.refresh()
         key = win.getch()
 
-        if key == 27:  # Esc
-            curses.noecho()
-            curses.curs_set(0)
-            return None
-        elif key == 9:  # Tab
-            current = (current + 1) % len(fields)
-        elif key == 10:  # Enter
-            if not values[0] or not values[0].strip():
-                continue
+        if key == 27:
+            curses.noecho(); curses.curs_set(0); return None
+        elif key == 9:
+            cur = (cur + 1) % len(fields)
+        elif key == 10:
             alias = ''.join(c for c in values[0] if c.isalnum() or c in '_-')
             if not alias:
                 continue
-            curses.noecho()
-            curses.curs_set(0)
+            curses.noecho(); curses.curs_set(0)
             return {
                 'alias': alias,
                 'remote_path': values[1],
                 'local_mount': values[2],
                 'editor_cmd': values[3] or 'zed',
             }
-        elif key == curses.KEY_BACKSPACE or key == 127:
-            values[current] = values[current][:-1]
+        elif key in (curses.KEY_BACKSPACE, 127):
+            values[cur] = values[cur][:-1]
         elif 32 <= key <= 126:
-            values[current] += chr(key)
-
-    curses.noecho()
-    curses.curs_set(0)
-    return None
+            values[cur] += chr(key)
 
 
 def generate_key_dialog(stdscr):
-    """Dialog to generate an ED25519 keypair."""
     h, w = stdscr.getmaxyx()
-    win = curses.newwin(8, 55, (h - 8) // 2, (w - 55) // 2)
+    dh, dw = 8, 55
+    win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
     win.keypad(True)
-    curses.echo()
-    curses.curs_set(1)
-
+    curses.echo(); curses.curs_set(1)
     keyname = ''
-    message = ''
 
     while True:
-        win.clear()
-        win.box()
-        win.addstr(0, 2, ' Generate ED25519 Keypair ', curses.A_BOLD)
-        win.addstr(2, 3, 'Key name:')
-        win.addstr(3, 3, f'  {keyname}_')
-        if message:
-            win.addstr(5, 3, message, curses.color_pair(4))
-        win.addstr(6, 2, ' Enter:generate  Esc:cancel ')
+        win.erase()
+        draw_box(win, 0, 0, dh, dw, 'Generate ED25519 Keypair', curses.color_pair(3))
+        safe_addstr(win, 2, 3, 'Key name:')
+        safe_addstr(win, 3, 3, f'  {keyname}█')
+        safe_addstr(win, 6, 2, 'Enter:generate  Esc:cancel')
         win.refresh()
-
         key = win.getch()
 
         if key == 27:
-            curses.noecho()
-            curses.curs_set(0)
-            return
+            curses.noecho(); curses.curs_set(0); return
         elif key == 10:
             if not keyname.strip():
-                message = 'Key name cannot be empty.'
                 continue
             clean = Path(keyname).stem
             clean = re.sub(r'\.(key|pub)$', '', clean)
             if not clean:
-                message = 'Invalid key name.'
                 continue
             private = CONF_DIR / f'{clean}.key'
             public = CONF_DIR / f'{clean}.pub'
             if private.exists():
-                message = f'Key {clean}.key already exists!'
                 continue
-            result = subprocess.run(
+            subprocess.run(
                 ['ssh-keygen', '-t', 'ed25519', '-f', str(private),
                  '-C', f'wsm-{clean}', '-N', ''],
                 capture_output=True, text=True,
             )
-            subprocess.run(['mv', f'{private}.pub', str(public)],
-                          capture_output=True)
-            curses.noecho()
-            curses.curs_set(0)
-            message = f'Key {clean} generated! Press any key.'
-            win.clear()
-            win.box()
-            win.addstr(0, 2, ' Generate ED25519 Keypair ', curses.A_BOLD)
-            win.addstr(3, 3, f'Private: {private}', curses.color_pair(1))
-            win.addstr(4, 3, f'Public:  {public}', curses.color_pair(1))
-            win.addstr(6, 2, ' Press any key to continue ')
+            subprocess.run(['mv', f'{private}.pub', str(public)], capture_output=True)
+            win.erase()
+            draw_box(win, 0, 0, dh, dw, 'Key Generated', curses.color_pair(3))
+            safe_addstr(win, 2, 3, f'Private: {private}', curses.color_pair(1))
+            safe_addstr(win, 3, 3, f'Public:  {public}', curses.color_pair(1))
+            safe_addstr(win, 5, 2, 'Press any key to continue')
             win.refresh()
-            curses.noecho()
-            curses.curs_set(0)
-            win.getch()
-            return
-        elif key == curses.KEY_BACKSPACE or key == 127:
+            curses.noecho(); curses.curs_set(0); win.getch(); return
+        elif key in (curses.KEY_BACKSPACE, 127):
             keyname = keyname[:-1]
         elif 32 <= key <= 126:
             keyname += chr(key)
 
 
 def desktop_snippet(stdscr, project):
-    """Show desktop action snippet for a project."""
     h, w = stdscr.getmaxyx()
     lines = [
-        f'Actions={project};',
-        '',
+        f'Actions={project};', '',
         f'[Desktop Action {project}]',
         f'Name=Open Remote: {project}',
         f'Exec=bash -c \'source $HOME/.wsm && wsm run {project}\'',
         f'Identifier={project}',
     ]
-
-    win_h = min(len(lines) + 4, h - 2)
-    win_w = max(len(max(lines, key=len)) + 4, 50)
-    win = curses.newwin(win_h, win_w, (h - win_h) // 2, (w - win_w) // 2)
-
-    win.clear()
-    win.box()
-    win.addstr(0, 2, ' Desktop Action Snippet ', curses.A_BOLD)
+    dh = len(lines) + 4
+    dw = max(len(max(lines, key=len)) + 4, 50)
+    win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
+    win.erase()
+    draw_box(win, 0, 0, dh, dw, 'Desktop Action Snippet', curses.color_pair(3))
     for i, line in enumerate(lines):
-        win.addstr(2 + i, 3, line)
-    win.addstr(win_h - 1, 2, ' Press any key to close ')
+        safe_addstr(win, 2 + i, 3, line)
+    safe_addstr(win, dh - 2, 2, 'Press any key to close')
     win.refresh()
     win.getch()
 
 
-def draw_help(stdscr):
-    """Show full help dialog."""
+def help_dialog(stdscr):
     h, w = stdscr.getmaxyx()
-    help_lines = [
-        'WSM Workspace Manager — Keyboard Shortcuts',
+    lines = [
+        'WSM Workspace Manager  —  Midnight Commander Style',
         '',
-        '  Enter / r        Mount + open in editor',
-        '  m                Mount only',
-        '  u                Unmount',
-        '  s                Native SSH remoting (bypasses FUSE)',
-        '  c                Create new project config',
-        '  d                Show Desktop Action snippet',
-        '  k                Generate ED25519 SSH keypair',
-        '  h                This help',
-        '  q                Quit',
-        '  j / ↓            Move down',
-        '  k / ↑            Move up',
+        '  Tab              Switch panels',
+        '  ↑↓               Navigate projects / actions',
+        '  Enter            Execute selected action',
         '',
-        'Configs: ~/.config/workspace/<name>.conf  (TOML format)',
+        '  F1  Help         F6  Unmount',
+        '  F2  Menu         F7  New config',
+        '  F3  Mount         F8  SSH keys',
+        '  F4  Run           F9  Desktop entry',
+        '  F5  Connect       F10 Quit',
+        '',
+        f'Configs: {CONF_DIR}',
     ]
-    win_h = min(len(help_lines) + 2, h - 2)
-    win_w = max(len(max(help_lines, key=len)) + 4, 55)
-    win = curses.newwin(win_h, win_w, (h - win_h) // 2, (w - win_w) // 2)
-    win.clear()
-    win.box()
-    for i, line in enumerate(help_lines):
-        if i == 0:
-            win.addstr(i + 1, 3, line, curses.A_BOLD)
-        else:
-            win.addstr(i + 1, 3, line)
-    win.addstr(win_h - 1, 2, ' Press any key to close ')
+    dh = len(lines) + 3
+    dw = 58
+    win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
+    win.erase()
+    draw_box(win, 0, 0, dh, dw, 'Help', curses.color_pair(3))
+    for i, line in enumerate(lines):
+        attr = curses.A_BOLD if i == 0 else 0
+        safe_addstr(win, 1 + i, 3, line, attr)
+    safe_addstr(win, dh - 2, 2, 'Press any key to close')
     win.refresh()
     win.getch()
 
+
+# ── Main TUI ────────────────────────────────────────────────────────
 
 def main(stdscr):
     curses.curs_set(0)
     stdscr.keypad(True)
 
-    curses.init_pair(1, curses.COLOR_GREEN, -1)   # mounted
-    curses.init_pair(2, curses.COLOR_WHITE, -1)    # idle
-    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)  # selection
-    curses.init_pair(4, curses.COLOR_YELLOW, -1)   # status
-    curses.init_pair(5, curses.COLOR_CYAN, -1)     # header
+    # Colors
+    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)       # mounted
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)        # idle
+    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_CYAN)   # active panel border
+    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_WHITE)  # active row
+    curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)         # inactive border
+    curses.init_pair(6, curses.COLOR_YELLOW, curses.COLOR_BLACK)       # highlight
+    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_YELLOW)  # button highlight
+    curses.init_pair(8, curses.COLOR_BLUE, curses.COLOR_BLACK)         # menu bar
+    curses.init_pair(9, curses.COLOR_BLACK, curses.COLOR_BLUE)    # menu bar text
 
-    idx = 0
-    scroll = 0
-    message = ''
+    # State
+    projects = []
+    pidx = 0          # project index
+    pscroll = 0       # project scroll offset
+    aidx = 0          # action index in right panel
+    focus = 'left'    # 'left' | 'right'
     needs_refresh = True
 
     while True:
         if needs_refresh:
             projects = load_projects()
-            idx = min(idx, max(0, len(projects) - 1))
+            pidx = min(pidx, max(0, len(projects) - 1))
             needs_refresh = False
 
         h, w = stdscr.getmaxyx()
-        stdscr.clear()
+        stdscr.erase()
 
-        # ── Header ──
-        header = f' WSM Workspace Manager v{VERSION}  '
-        stdscr.addstr(0, 0, header.center(w)[:w], curses.color_pair(5) | curses.A_BOLD)
+        # ── 0. Menu bar ──
+        menu_text = ' Left   File   Command   Options   Right '
+        stdscr.addstr(0, 0, ' ' * (w - 1), curses.color_pair(8))
+        safe_addstr(stdscr, 0, 1, menu_text, curses.color_pair(9))
 
-        # ── Project list ──
-        list_start = 2
-        visible = h - 5  # space for status bar and messages
+        # ── Panel geometry ──
+        body_y, body_h = 1, h - 3     # below menu, above F-keys
+        divider_x = max(30, w // 2)    # split point
+        left_w = divider_x
+        right_w = w - divider_x - 1
+
+        # Panel colors
+        lborder = curses.color_pair(3) if focus == 'left' else curses.color_pair(5)
+        rborder = curses.color_pair(3) if focus == 'right' else curses.color_pair(5)
+        lborder_attr = curses.A_BOLD if focus == 'left' else 0
+        rborder_attr = curses.A_BOLD if focus == 'right' else 0
+
+        # ── 1. Left panel — Projects ──
+        draw_box(stdscr, body_y, 0, body_h, left_w, 'Projects', lborder | lborder_attr)
+        # Vertical divider between panels
+        draw_vdivider(stdscr, body_y, divider_x, body_h,
+                      curses.color_pair(3) | curses.A_BOLD)
+
+        inner_y = body_y + 1
+        inner_x = 1
+        visible_h = body_h - 2
 
         if not projects:
-            stdscr.addstr(list_start + 1, 2, 'No projects configured.')
-            stdscr.addstr(list_start + 2, 2, f'Create configs in {CONF_DIR}')
-            stdscr.addstr(list_start + 3, 2, 'Press [c] to create one.')
+            safe_addstr(stdscr, inner_y + 1, inner_x + 1,
+                        'No projects configured.', curses.color_pair(2))
+            safe_addstr(stdscr, inner_y + 2, inner_x + 1,
+                        f'Configs go in {CONF_DIR}')
+            safe_addstr(stdscr, inner_y + 3, inner_x + 1,
+                        'Press F7 or [c] to create one.')
         else:
-            # Column headers
-            stdscr.addstr(list_start, 2, 'PROJECT', curses.A_UNDERLINE)
-            stdscr.addstr(list_start, 35, 'STATUS', curses.A_UNDERLINE)
-            stdscr.addstr(list_start, 45, 'REMOTE', curses.A_UNDERLINE)
+            # Scroll
+            if pidx < pscroll:
+                pscroll = pidx
+            elif pidx >= pscroll + visible_h:
+                pscroll = pidx - visible_h + 1
 
-            # Adjust scroll
-            if idx < scroll:
-                scroll = idx
-            elif idx >= scroll + visible:
-                scroll = idx - visible + 1
-
-            for i, proj in enumerate(projects[scroll:scroll + visible]):
-                y = list_start + 1 + i
-                if y >= h - 3:
+            for i, proj in enumerate(projects[pscroll:pscroll + visible_h]):
+                y = inner_y + i
+                if y >= inner_y + visible_h:
                     break
+                real_idx = pscroll + i
+                sel = real_idx == pidx and focus == 'left'
 
-                real_idx = scroll + i
-                is_sel = real_idx == idx
-
-                # Status
+                # Status icon
                 if proj['mounted']:
-                    status = ' MOUNTED'
-                    status_color = curses.color_pair(1) | curses.A_BOLD
+                    icon = '●'
+                    icolor = curses.color_pair(1) | curses.A_BOLD
                 else:
-                    status = ' idle'
-                    status_color = curses.color_pair(2)
+                    icon = '○'
+                    icolor = curses.color_pair(2)
 
-                # Line color
-                if is_sel:
-                    line_color = curses.color_pair(3)
-                    stdscr.addstr(y, 0, ' ' * w, line_color)
+                # Selection
+                if sel:
+                    line_attr = curses.color_pair(4)
+                    stdscr.addstr(y, inner_x, ' ' * (left_w - 2), line_attr)
                 else:
-                    line_color = curses.A_NORMAL
+                    line_attr = 0
 
-                prefix = '> ' if is_sel else '  '
-                alias = proj['remote_path'].split(':')[0] if proj['remote_path'] else '-'
-                alias_short = alias[:15]
+                prefix = '▶' if (sel and focus == 'left') else ' '
+                safe_addstr(stdscr, y, inner_x + 1, f'{prefix} {proj["name"]:<24} {icon}',
+                            line_attr | (icolor if not sel else 0))
 
-                stdscr.addstr(y, 2, f'{prefix}{proj["name"]:<28}', line_color)
-                stdscr.addstr(y, 34, status, status_color | (curses.A_REVERSE if is_sel else 0))
-                stdscr.addstr(y, 45, alias_short, line_color)
+            # Summary line at bottom of left panel
+            summ = f' {len(projects)} project(s) '
+            safe_addstr(stdscr, body_y + body_h - 2, 1,
+                        summ[:left_w - 2], curses.color_pair(6))
 
-            # Mount info for selected
-            if projects:
-                sel = projects[idx]
-                info_y = h - 3
-                if sel['mounted']:
-                    info = f' [mounted] {sel["local_mount"]}'
-                    stdscr.addstr(info_y, 2, info[:w-4], curses.color_pair(1))
+        # ── 2. Right panel — Actions + Info ──
+        draw_box(stdscr, body_y, divider_x + 1, body_h, right_w,
+                 'Actions', rborder | rborder_attr)
+
+        if projects:
+            sel = projects[pidx]
+            rx = divider_x + 2
+            ry = body_y + 1
+
+            # Action buttons
+            if sel['mounted']:
+                actions = ['Unmount', 'Browse', 'Connect']
+            else:
+                actions = ['Mount', 'Run', 'Connect']
+
+            for i, act in enumerate(actions):
+                y = ry + i * 2
+                if y >= body_y + body_h - 10:
+                    break
+                highlight = focus == 'right' and i == aidx
+                label = f'[ {act:<10} ]'
+                if highlight:
+                    safe_addstr(stdscr, y, rx, label, curses.color_pair(7) | curses.A_BOLD)
                 else:
-                    info = ' [not mounted]'
-                    stdscr.addstr(info_y, 2, info[:w-4], curses.color_pair(2))
+                    safe_addstr(stdscr, y, rx, label)
 
-        # ── Status bar ──
-        status_bar = (
-            f' Enter/r:Run  m:Mount  u:Unmount  s:SSH  c:New  d:Desktop  k:Keys  h:Help  q:Quit  '
-        )
-        stdscr.addstr(h - 1, 0, status_bar[:w], curses.color_pair(3))
+            # Info section
+            info_y = ry + len(actions) * 2 + 1
+            if info_y < body_y + body_h - 4:
+                safe_addstr(stdscr, info_y, rx, '─' * (right_w - 4), curses.color_pair(5))
+                info_y += 1
 
-        # ── Message ──
-        if message:
-            msg_y = h - 2
-            stdscr.addstr(msg_y, 2, message[:w-4], curses.color_pair(4))
-            message = ''
+                def info_line(y, label, value, color=0):
+                    text = f'{label}: {value or "-"}'
+                    safe_addstr(stdscr, y, rx, text[:right_w - 4], color)
+
+                alias = sel['remote_path'].split(':')[0] if sel['remote_path'] else '-'
+                info_line(info_y, 'Remote', sel['remote_path'] or '-'
+                          if len(sel['remote_path'] or '') < right_w - 12
+                          else (sel['remote_path'] or '-')[:right_w - 15] + '…')
+                info_y += 1
+                info_line(info_y, 'Local', str(sel['local_mount'] or '-'))
+                info_y += 1
+                info_line(info_y, 'Editor', sel['editor_cmd'] or '-')
+                info_y += 1
+                status = '● mounted' if sel['mounted'] else '○ idle'
+                info_line(info_y, 'Status', status,
+                          curses.color_pair(1) if sel['mounted'] else curses.color_pair(2))
+
+            # Tools section
+            tools_y = ry + body_h - 9
+            if tools_y > info_y + 2:
+                safe_addstr(stdscr, tools_y, rx, '─' * (right_w - 4), curses.color_pair(5))
+                tools = ['New config', 'SSH keys', 'Desktop entry']
+                for i, tool in enumerate(tools):
+                    y = tools_y + 1 + i * 2
+                    if y >= body_y + body_h - 2:
+                        break
+                    highlight = focus == 'right' and i + len(actions) == aidx
+                    label = f'[ {tool:<14} ]'
+                    if highlight:
+                        safe_addstr(stdscr, y, rx, label,
+                                    curses.color_pair(7) | curses.A_BOLD)
+                    else:
+                        safe_addstr(stdscr, y, rx, label)
+
+        # ── 3. F-key bar ──
+        fbar_y = h - 2
+        draw_bar(stdscr, fbar_y, 0, w)
+        stdscr.addstr(fbar_y + 1, 0, ' ' * (w - 1), curses.color_pair(8))
+        mnt = sum(1 for p in projects if p['mounted'])
+        status = f' {len(projects)} projects | {mnt} mounted | Tab:switch panel | F1:help | F10:quit '
+        safe_addstr(stdscr, fbar_y + 1, 1, status[:w - 2],
+                    curses.color_pair(9))
 
         stdscr.refresh()
 
+        # ── Input ──
         key = stdscr.getch()
 
-        if key == ord('q'):
+        num_right_actions = 6  # 3 context + 3 tools
+
+        # Global: quit
+        if key == ord('q') or key == curses.KEY_F10 or key == 27:
             break
-        elif key == ord('h'):
-            draw_help(stdscr)
-            h, w = stdscr.getmaxyx()  # recalc after help
-        elif key == ord('j') or key == curses.KEY_DOWN:
-            idx = min(idx + 1, len(projects) - 1) if projects else 0
-        elif key == ord('k') or key == curses.KEY_UP:
-            idx = max(idx - 1, 0)
-        elif key == ord('c'):
-            data = create_config_dialog(stdscr)
-            if data:
-                conf_file = CONF_DIR / f'{data["alias"]}.conf'
-                CONF_DIR.mkdir(parents=True, exist_ok=True)
-                with open(conf_file, 'w') as f:
-                    f.write(f'remote_path = "{data["remote_path"]}"\n')
-                    f.write(f'local_mount = "{data["local_mount"]}"\n')
-                    f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
-                message = f'Config {data["alias"]} saved!'
-                needs_refresh = True
-            stdscr.clear()
-            h, w = stdscr.getmaxyx()
-        elif key == ord('k'):
-            generate_key_dialog(stdscr)
-            stdscr.clear()
-            h, w = stdscr.getmaxyx()
-        elif not projects:
+
+        # Global: help
+        if key == curses.KEY_F1:
+            help_dialog(stdscr)
             continue
-        elif key in (ord('r'), 10):  # Enter or r
-            sel = projects[idx]
-            stdout, stderr, rc = wsm_cli('run', sel['name'])
-            if rc == 0:
-                message = f'{sel["name"]}: mounted and launched!'
+
+        if focus == 'left':
+            if key == ord('\t'):
+                focus = 'right'
+            elif key in (curses.KEY_RIGHT,):
+                focus = 'right'
+            elif key in (curses.KEY_DOWN, ord('j')):
+                pidx = min(pidx + 1, len(projects) - 1) if projects else 0
+            elif key in (curses.KEY_UP, ord('k')):
+                pidx = max(pidx - 1, 0)
+            elif key == 10 and projects:  # Enter → jump to right panel
+                focus = 'right'
+                aidx = 0
             else:
-                message = f'{sel["name"]}: {stderr.strip() or "error"}'
-            needs_refresh = True
-        elif key == ord('m'):
-            sel = projects[idx]
-            stdout, stderr, rc = wsm_cli('mount', sel['name'])
-            if rc == 0:
-                message = f'{sel["name"]}: mounted!'
+                needs_refresh = _handle_fkey_key(key, projects, pidx, stdscr)
+
+        else:  # focus == 'right'
+            if key == ord('\t'):
+                focus = 'left'
+            elif key in (curses.KEY_LEFT,):
+                focus = 'left'
+            elif key == 27:  # Esc → back to left
+                focus = 'left'
+            elif not projects:
+                continue
+            elif key in (curses.KEY_DOWN, ord('j')):
+                aidx = min(aidx + 1, num_right_actions - 1)
+            elif key in (curses.KEY_UP, ord('k')):
+                aidx = max(aidx - 1, 0)
+            elif key == 10:
+                needs_refresh = _do_action(aidx, projects, pidx, stdscr)
             else:
-                message = f'{sel["name"]}: {stderr.strip() or "error"}'
-            needs_refresh = True
-        elif key == ord('u'):
-            sel = projects[idx]
-            stdout, stderr, rc = wsm_cli('unmount', sel['name'])
-            message = f'{sel["name"]}: unmounted.'
-            needs_refresh = True
-        elif key == ord('s'):
-            sel = projects[idx]
-            stdout, stderr, rc = wsm_cli('connect', sel['name'])
-            if rc == 0:
-                message = f'{sel["name"]}: native SSH remoting launched!'
-            else:
-                message = f'{sel["name"]}: {stderr.strip() or "error"}'
-            needs_refresh = True
-        elif key == ord('d'):
-            sel = projects[idx]
-            desktop_snippet(stdscr, sel['name'])
-            stdscr.clear()
-            h, w = stdscr.getmaxyx()
+                needs_refresh = _handle_fkey_key(key, projects, pidx, stdscr)
+
+
+def _handle_fkey_key(key, projects, pidx, stdscr):
+    """Handle F-key and single-key shortcuts. Returns True if needs refresh."""
+    fkey_map = {
+        curses.KEY_F3:  'mount',
+        curses.KEY_F4:  'run',
+        curses.KEY_F5:  'connect',
+        curses.KEY_F6:  'unmount',
+        curses.KEY_F7:  'new',
+        curses.KEY_F8:  'keys',
+        curses.KEY_F9:  'desktop',
+    }
+    single_map = {
+        ord('m'): 'mount',
+        ord('r'): 'run',
+        ord('s'): 'connect',
+        ord('u'): 'unmount',
+        ord('c'): 'new',
+        ord('k'): 'keys',
+        ord('d'): 'desktop',
+    }
+
+    action = fkey_map.get(key) or single_map.get(key)
+    if not action or not projects:
+        return False
+
+    project = projects[pidx]['name']
+
+    if action == 'new':
+        data = create_config_dialog(stdscr)
+        if data:
+            conf_file = CONF_DIR / f'{data["alias"]}.conf'
+            CONF_DIR.mkdir(parents=True, exist_ok=True)
+            with open(conf_file, 'w') as f:
+                f.write(f'remote_path = "{data["remote_path"]}"\n')
+                f.write(f'local_mount = "{data["local_mount"]}"\n')
+                f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+        stdscr.clear()
+    elif action == 'keys':
+        generate_key_dialog(stdscr)
+        stdscr.clear()
+    elif action == 'desktop':
+        desktop_snippet(stdscr, project)
+        stdscr.clear()
+    else:
+        wsm_cli(action, project)
+
+    return True
+
+
+def _do_action(aidx, projects, pidx, stdscr):
+    """Execute an action from the right panel."""
+    project = projects[pidx]['name']
+    mounted = projects[pidx]['mounted']
+
+    if not mounted:
+        context = {0: 'mount', 1: 'run', 2: 'connect'}
+    else:
+        context = {0: 'unmount', 1: 'run', 2: 'connect'}
+
+    if aidx < 3:
+        if aidx in context:
+            wsm_cli(context[aidx], project)
+        return True
+
+    # Tools
+    if aidx == 3:
+        data = create_config_dialog(stdscr)
+        if data:
+            conf_file = CONF_DIR / f'{data["alias"]}.conf'
+            CONF_DIR.mkdir(parents=True, exist_ok=True)
+            with open(conf_file, 'w') as f:
+                f.write(f'remote_path = "{data["remote_path"]}"\n')
+                f.write(f'local_mount = "{data["local_mount"]}"\n')
+                f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+        stdscr.clear()
+        return True
+    elif aidx == 4:
+        generate_key_dialog(stdscr)
+        stdscr.clear()
+        return True
+    elif aidx == 5:
+        desktop_snippet(stdscr, project)
+        stdscr.clear()
+        return True
+    return False
 
 
 if __name__ == '__main__':
