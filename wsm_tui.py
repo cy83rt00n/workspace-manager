@@ -157,26 +157,26 @@ def desktop_snippet(stdscr, project):
 def help_dialog(stdscr):
     max_h, max_w = stdscr.getmaxyx()
     rows = [
-        ('F3 ', True,  'm', 'Mount',       'F6 ', True,  'u', 'Unmount'),
-        ('F4 ', True,  'r', 'Run',         'F7 ', True,  'c', 'New config'),
-        ('F5 ', True,  's', 'Connect',     'F8 ', True,  'e', 'Edit config'),
-        ('Del', True,  'x', 'Delete',      'F9 ', True,  'd', 'Desktop'),
-        ('F1 ', False, '',  'Help',        'F10', True,  'q', 'Quit'),
+        ('F3', True,  'm', 'Mount',       'F6', True,  'u', 'Unmount'),
+        ('F4', True,  'r', 'Run',         'F7', True,  'c', 'New config'),
+        ('F5', True,  's', 'Connect',     'F8', True,  'e', 'Edit config'),
+        ('Del',True,  'x', 'Delete',      'F9', True,  'd', 'Desktop'),
+        ('F1', False, '',  'Help',        'F10',True,  'q', 'Quit'),
     ]
     lines = [
         'WSM Manager  —  MC Style',
         '',
-        '  Tab / ←→       Switch panels',
-        '  ↑↓ / j k       Navigate',
-        '  Enter          Execute',
-        '  Esc            Back to left panel',
+        '  Tab / ←→  Switch panels',
+        '  ↑↓ / j k  Navigate',
+        '  Enter     Execute',
+        '  Esc       Back to left panel',
         '',
     ]
     for k1, s1, c1, a1, k2, s2, c2, a2 in rows:
-        sep1 = f' / {c1}  ' if s1 else '      '
-        sep2 = f' / {c2}  ' if s2 else '      '
-        left = f'  {k1:<4}{sep1}{a1:<10}'
-        right = f'{k2:<4}{sep2}{a2:<10}'
+        se1 = f' / {c1}  ' if s1 else '      '
+        se2 = f' / {c2}  ' if s2 else '      '
+        left = f'  {k1:<4}{se1}{a1:<10}'
+        right = f'{k2:<4}{se2}{a2:<10}'
         lines.append(f'{left}  {right}')
     lines += [
         '',
