@@ -12,17 +12,27 @@ from pathlib import Path
 from wsm_core import CONF_DIR, VERSION, parse_toml, is_mounted, check_net
 
 SPINNER = itertools.cycle('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏')
+IS_TTY = sys.stdout.isatty()
 
 
 def spin(msg):
     """Print spinning progress indicator on current line."""
-    print(f'\r{msg} {next(SPINNER)}', end='', flush=True)
+    if IS_TTY:
+        print(f'\r{msg} {next(SPINNER)}', end='', flush=True)
+    else:
+        print(f'{msg}...')
 
 
 def spin_done(msg='OK'):
     """Clear spinner line and print completion."""
-    tw = os.get_terminal_size().columns
-    print(f'\r{" " * tw}\r{msg}', flush=True)
+    if IS_TTY:
+        try:
+            tw = os.get_terminal_size().columns
+        except OSError:
+            tw = 80
+        print(f'\r{" " * tw}\r{msg}', flush=True)
+    else:
+        print(msg)
 
 
 def cmd_mount(remote_path, local_mount):
