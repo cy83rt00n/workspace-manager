@@ -11,4 +11,4 @@
 ## Removed
 
 - **`.wsm`**, **`.wsm-manager`** — Bash code moved to `cli` branch
-- Old **`install.sh`**, **`uninstall.sh`**, **`README.md`**, **`CHANGELOG.md`** — Replaced
+- **`uninstall.sh`** — Hooks now cleaned via single sed range (`>>> WSM BEGIN >>>` / `<<< WSM END <<<`) instead of fragile per-line regex

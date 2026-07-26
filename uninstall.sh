@@ -34,9 +34,7 @@ echo ""
 remove_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        sed -i '/# Workspace Manager/d' "$rc_file" 2>/dev/null || true
-        sed -i '/export PATH="\$HOME\/.local\/bin:\$PATH"/d' "$rc_file" 2>/dev/null || true
-        sed -i '/\.wsm/d' "$rc_file" 2>/dev/null || true
+        sed -i '/>>> WSM BEGIN >>>/,/<<< WSM END <<</d' "$rc_file" 2>/dev/null || true
         echo "  Cleaned $rc_file"
     fi
 }
