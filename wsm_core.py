@@ -116,9 +116,18 @@ def validate_config(alias, remote_path, local_mount):
         return False, 'Alias required (a-z, 0-9, _, -)'
     if remote_path.count(':') != 1 or not remote_path.split(':')[0]:
         return False, 'Remote must be alias:/path'
+    if local_mount.startswith('~'):
+        local_mount = str(Path(local_mount).expanduser())
     if not local_mount.startswith('/'):
         return False, 'Local mount must be absolute path'
     return True, ''
+
+
+def expand_mount_path(local_mount):
+    """Expand ~ to home directory."""
+    if local_mount.startswith('~'):
+        return str(Path(local_mount).expanduser())
+    return local_mount
 
 
 def save_config(alias, remote_path, local_mount, editor_cmd='zed',

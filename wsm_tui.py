@@ -13,7 +13,7 @@ from wsm_core import (CONF_DIR, VERSION, parse_toml, is_mounted,
                        load_projects, wsm_cli, check_net, match_key,
                        validate_config, save_config, can_delete_config,
                        delete_config_file, generate_keypair,
-                       desktop_snippet_text)
+                       desktop_snippet_text, expand_mount_path)
 
 from wsm_render import (safe_addstr, draw_box, draw_vdivider, draw_bar,
                          HL, VL, UL, UR, LL, LR, LT, RT, TT, BT,
@@ -51,7 +51,7 @@ def spinner_modal(stdscr, action, project):
 
 
 def config_form(stdscr, initial=None):
-    """Create/edit config form — thin wrapper over render_form with validation."""
+    """Create/edit config form — loops until valid or cancelled."""
     title = 'Edit Config' if initial else 'Create Config'
     fields = [
         ('Alias:', 'alias'),
@@ -69,26 +69,35 @@ def config_form(stdscr, initial=None):
     else:
         prefill = {'editor': 'zed'}
 
-    data = render_form(stdscr, title, fields, initial=prefill)
-    if not data:
-        return None
+    while True:
+        data = render_form(stdscr, title, fields, initial=prefill)
+        if not data:
+            return None
 
-    alias_raw = data.get('alias', '')
-    alias = ''.join(c for c in alias_raw if c.isalnum() or c in '_-')
-    result = {
-        'alias': alias,
-        'remote_path': data.get('remote', ''),
-        'local_mount': data.get('mount', ''),
-        'editor_cmd': data.get('editor', 'zed'),
-        '_raw_alias': alias_raw,
-        '_raw_remote': data.get('remote', ''),
-        '_raw_mount': data.get('mount', ''),
-    }
-    ok, err = validate_config(alias_raw, result['remote_path'], result['local_mount'])
-    if not ok:
-        show_msg(stdscr, err)
-        return None
-    return result
+        alias_raw = data.get('alias', '')
+        alias = ''.join(c for c in alias_raw if c.isalnum() or c in '_-')
+        mount_raw = data.get('mount', '')
+        mount_expanded = expand_mount_path(mount_raw)
+        result = {
+            'alias': alias,
+            'remote_path': data.get('remote', ''),
+            'local_mount': mount_expanded,
+            'editor_cmd': data.get('editor', 'zed'),
+            '_raw_alias': alias_raw,
+            '_raw_remote': data.get('remote', ''),
+            '_raw_mount': mount_raw,
+        }
+        ok, err = validate_config(alias_raw, result['remote_path'], mount_raw)
+        if not ok:
+            show_msg(stdscr, err)
+            prefill = {
+                'alias': alias_raw,
+                'remote': data.get('remote', ''),
+                'mount': mount_raw,
+                'editor': data.get('editor', 'zed'),
+            }
+            continue
+        return result
 
 
 def generate_key_dialog(stdscr):
