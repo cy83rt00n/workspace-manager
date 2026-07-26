@@ -159,12 +159,15 @@ cp "$TARGET_REPO_DIR/.wsm-complete" "$HOME/.wsm-complete"
 inject_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$rc_file"; then
-            echo -e "\n# Workspace Manager\nexport PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$rc_file"
-        fi
-        if ! grep -q 'source \$HOME/.wsm-complete' "$rc_file"; then
-            echo -e "if [ -f \"\$HOME/.wsm-complete\" ]; then source \"\$HOME/.wsm-complete\"; fi" >> "$rc_file"
-            echo "Autocomplete hook injected into $rc_file"
+        if ! grep -q ">>> WSM BEGIN >>>" "$rc_file"; then
+            cat << 'EOF' >> "$rc_file"
+
+# >>> WSM BEGIN >>>
+export PATH="$HOME/.local/bin:$PATH"
+if [ -f "$HOME/.wsm-complete" ]; then source "$HOME/.wsm-complete"; fi
+# <<< WSM END <<<
+EOF
+            echo "Hook injected into $rc_file"
         fi
     fi
 }
