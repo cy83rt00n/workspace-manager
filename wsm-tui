@@ -10,7 +10,7 @@ from pathlib import Path
 
 CONF_DIR = Path.home() / '.config' / 'workspace'
 VERSION = '2.0.0'
-MIN_W, MIN_H = 80, 20
+MIN_W, MIN_H = 60, 16
 
 # ── Shared helpers ────────────────────────────────────────────────
 
@@ -670,3 +670,7 @@ def _delete_config(projects, pidx, stdscr):
         except Exception as e:
             _show_msg(stdscr, f'Delete failed: {e}')
     return True
+
+
+if __name__ == '__main__':
+    curses.wrapper(main)
