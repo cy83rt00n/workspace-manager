@@ -105,23 +105,23 @@ wsm() {
             fi
             ;;
         connect|c)
-                    local ssh_alias="${REMOTE_PATH%%:*}"
-                    local remote_dir="${REMOTE_PATH#*:}"
+            local ssh_alias="${remote_path%%:*}"
+            local remote_dir="${remote_path#*:}"
 
-                    echo -n "Checking network for native SSH Remoting..."
-                    _wsm_check_net "$ssh_alias" || return 1
-                    echo " [OK]"
+            echo -n "Checking network for native SSH Remoting..."
+            _wsm_check_net "$ssh_alias" || return 1
+            echo " [OK]"
 
-                    if [[ "$EDITOR_CMD" == "code" ]]; then
-                        echo "Launching VS Code Remote-SSH on $ssh_alias..."
-                        # Синтаксис VS Code: code --folder-uri=vscode-remote://ssh-remote+<alias><path>
-                        code --folder-uri="vscode-remote://ssh-remote+${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
-                    else
-                        echo "Launching Zed Native SSH Server on $ssh_alias..."
-                        # Синтаксис Zed: zed ssh://<alias><path>
-                        zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
-                    fi
-                    ;;
+            if [[ "$editor_cmd" == "code" ]]; then
+                echo "Launching VS Code Remote-SSH on $ssh_alias..."
+                # Синтаксис VS Code: code --folder-uri=vscode-remote://ssh-remote+<alias><path>
+                code --folder-uri="vscode-remote://ssh-remote+${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+            else
+                echo "Launching Zed Native SSH Server on $ssh_alias..."
+                # Синтаксис Zed: zed ssh://<alias><path>
+                zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+            fi
+            ;;
         *)
             echo "Unknown command: $cmd. Use: mount, unmount, run" && return 1
             ;;

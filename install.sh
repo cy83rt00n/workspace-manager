@@ -62,6 +62,8 @@ pkg_name() {
     esac
 }
 
+mkdir -p "$TARGET_REPO_DIR"
+
 echo ""
 echo "── Checking dependencies ──"
 PKG_MANAGER=$(detect_pkg_manager)
