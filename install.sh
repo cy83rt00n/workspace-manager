@@ -127,9 +127,14 @@ cp "$TARGET_REPO_DIR/.wsm-manager" "$HOME/.wsm-manager"
 inject_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if ! grep -q "source \$HOME/.wsm" "$rc_file"; then
-            echo -e "\n# Workspace Manager Hook\nif [ -f \"\$HOME/.wsm\" ]; then source \"\$HOME/.wsm\"; fi" >> "$rc_file"
-            echo "Hook injected successfully into $rc_file"
+        if ! grep -q ">>> WSM BEGIN >>>" "$rc_file"; then
+            cat << 'EOF' >> "$rc_file"
+
+# >>> WSM BEGIN >>>
+if [ -f "$HOME/.wsm" ]; then source "$HOME/.wsm"; fi
+# <<< WSM END <<<
+EOF
+            echo "Hook injected into $rc_file"
         fi
     fi
 }
