@@ -23,7 +23,7 @@ remove_hook() {
         if grep -q "source \$HOME/.wsm" "$rc_file" 2>/dev/null; then
             echo "Removing WSM hook from $rc_file..."
             sed -i '/# Workspace Manager Hook/d' "$rc_file"
-            sed -i '/source.*\.wsm/d' "$rc_file"
+            sed -i '/\.wsm/d' "$rc_file"
         fi
     fi
 }
