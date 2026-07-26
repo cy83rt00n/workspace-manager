@@ -78,9 +78,10 @@ def cmd_mount(remote_path, local_mount):
     print(f'Mounting {alias} to {local_mount}...')
     subprocess.run([
         'sshfs', remote_path, local_mount,
-        '-o', 'cache=yes,cache_stat_timeout=600,cache_dir_timeout=600,'
-              'cache_link_timeout=600',
+        '-o', 'cache=yes,cache_stat_timeout=1200,cache_dir_timeout=1200,'
+              'cache_link_timeout=1200',
         '-o', 'compression=yes,reconnect,ServerAliveInterval=15',
+        '-o', 'kernel_cache,noauto_cache',
     ])
 
 
@@ -105,6 +106,36 @@ def cmd_unmount(local_mount):
         subprocess.run(['umount', '-l', local_mount])
 
     print('Workspace detached successfully.')
+
+
+def cmd_connect(remote_path, editor_cmd):
+    """Launch editor native SSH remoting (bypasses FUSE).
+
+    VS Code: code --folder-uri=vscode-remote://ssh-remote+<alias><path>
+    Zed:    zed ssh://<alias><path>
+    """
+    ssh_alias = remote_path.split(':')[0]
+    remote_dir = remote_path[len(ssh_alias):]  # preserves leading ':'
+
+    print('Checking network for native SSH remoting...', end='', flush=True)
+    if not check_net(ssh_alias):
+        sys.exit(1)
+    print(' [OK]')
+
+    if editor_cmd == 'code':
+        uri = f'vscode-remote://ssh-remote+{ssh_alias}{remote_dir}'
+        print(f'Launching VS Code Remote-SSH on {ssh_alias}...')
+        subprocess.Popen(
+            ['code', '--folder-uri', uri],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    else:
+        uri = f'ssh://{ssh_alias}{remote_dir}'
+        print(f'Launching {editor_cmd} native SSH Server on {ssh_alias}...')
+        subprocess.Popen(
+            [editor_cmd, uri],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
 
 
 def cmd_run(remote_path, local_mount, editor_cmd, project):
@@ -143,7 +174,7 @@ def main():
     )
     parser.add_argument(
         'command', nargs='?',
-        choices=['mount', 'm', 'unmount', 'u', 'run', 'r'],
+        choices=['mount', 'm', 'unmount', 'u', 'run', 'r', 'connect', 'c', 'ssh'],
         help='Command to execute',
     )
     parser.add_argument('project', nargs='?', help='Project name')
@@ -190,6 +221,8 @@ def main():
         cmd_run(remote_path, local_mount, editor_cmd, args.project)
     elif cmd in ('unmount', 'u'):
         cmd_unmount(local_mount)
+    elif cmd in ('connect', 'c', 'ssh'):
+        cmd_connect(remote_path, editor_cmd)
 
 
 if __name__ == '__main__':

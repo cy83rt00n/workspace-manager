@@ -232,6 +232,7 @@ def draw_help(stdscr):
         '  Enter / r        Mount + open in editor',
         '  m                Mount only',
         '  u                Unmount',
+        '  s                Native SSH remoting (bypasses FUSE)',
         '  c                Create new project config',
         '  d                Show Desktop Action snippet',
         '  k                Generate ED25519 SSH keypair',
@@ -349,7 +350,7 @@ def main(stdscr):
 
         # ── Status bar ──
         status_bar = (
-            f' Enter/r:Run  m:Mount  u:Unmount  c:New  d:Desktop  k:Keys  h:Help  q:Quit  '
+            f' Enter/r:Run  m:Mount  u:Unmount  s:SSH  c:New  d:Desktop  k:Keys  h:Help  q:Quit  '
         )
         stdscr.addstr(h - 1, 0, status_bar[:w], curses.color_pair(3))
 
@@ -411,6 +412,14 @@ def main(stdscr):
             sel = projects[idx]
             stdout, stderr, rc = wsm_cli('unmount', sel['name'])
             message = f'{sel["name"]}: unmounted.'
+            needs_refresh = True
+        elif key == ord('s'):
+            sel = projects[idx]
+            stdout, stderr, rc = wsm_cli('connect', sel['name'])
+            if rc == 0:
+                message = f'{sel["name"]}: native SSH remoting launched!'
+            else:
+                message = f'{sel["name"]}: {stderr.strip() or "error"}'
             needs_refresh = True
         elif key == ord('d'):
             sel = projects[idx]
