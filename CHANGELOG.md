@@ -16,3 +16,7 @@
 ## Fixed
 
 - **`.wsm`** — Fixed `connect|c)` referencing undefined `REMOTE_PATH`/`EDITOR_CMD`; now uses `remote_path`/`editor_cmd`
+
+## Added
+
+- **`.wsm`** — Ported `delete` command (aliases: `del`, `rm`) from python-curses: safety check (mounted = refuse), confirmation prompt

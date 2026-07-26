@@ -39,6 +39,7 @@ wsm() {
         echo "  unmount, u    Safely unmount project directory"
         echo "  run, r        Verify net, mount project and launch IDE"
         echo "  connect, c    Bypass FUSE: launch native SSH server (Zed or VS Code)"
+        echo "  delete, del, rm  Delete project config"
         return 0
     fi
 
@@ -122,8 +123,22 @@ wsm() {
                 zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
             fi
             ;;
+        delete|del|rm)
+            if mountpoint -q "$local_mount" 2>/dev/null; then
+                echo "Error: Project '$project' is mounted. Unmount first." && return 1
+            fi
+
+            echo -n "Delete config '$project'? [y/N]: "
+            read -r answer
+            if [[ "$answer" =~ ^[Yy]$ ]]; then
+                rm -f "$conf"
+                echo "Config '$project' deleted."
+            else
+                echo "Cancelled."
+            fi
+            ;;
         *)
-            echo "Unknown command: $cmd. Use: mount, unmount, run" && return 1
+            echo "Unknown command: $cmd. Use: mount, unmount, run, connect, delete" && return 1
             ;;
     esac
 }
@@ -143,7 +158,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
     _wsm_bash_autocomplete() {
         local cur="${COMP_WORDS[COMP_CWORD]}"
         if [ "$COMP_CWORD" -eq 1 ]; then
-            COMPREPLY=($(compgen -W "mount unmount run connect m u r c help" -- "$cur"))
+            COMPREPLY=($(compgen -W "mount unmount run connect delete m u r c del rm help" -- "$cur"))
         elif [ "$COMP_CWORD" -eq 2 ]; then
             COMPREPLY=($(compgen -W "$(_wsm_complete_logic)" -- "$cur"))
         fi
@@ -152,7 +167,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 elif [ -n "${ZSH_VERSION:-}" ]; then
     _wsm_zsh_autocomplete() {
         local -a commands projects
-        commands=(mount m unmount u run r connect c help)
+        commands=(mount m unmount u run r connect c delete del rm help)
         projects=(${(f)"$(_wsm_complete_logic)"})
         if (( CURRENT == 2 )); then
             _describe -t commands 'wsm commands' commands
