@@ -184,7 +184,8 @@ def help_dialog(stdscr):
         f'Min size: {MIN_W}x{MIN_H}',
     ]
     dh = min(len(lines) + 3, max_h - 2)
-    dw = min(58, max_w - 2)
+    content_w = max((len(ln) for ln in lines), default=40) + 6
+    dw = min(max(content_w, 58), max_w - 2)
     win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
     win.erase()
     draw_box(win, 0, 0, dh, dw, 'Help', curses.color_pair(3))
