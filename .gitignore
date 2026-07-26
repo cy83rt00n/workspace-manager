@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+*.pyo
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+AGENT.md
+TASKS.md
