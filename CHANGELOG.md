@@ -14,3 +14,8 @@
 
 - **`demo.conf`** — Duplicate config, replaced by `demo.config.toml`
 - **`AGENT.md`**, **`TASKS.md`** — Removed from git tracking (now in `.gitignore`)
+
+## Changed
+
+- **`README.md`** — Rewritten for python-curses branch: Python-only docs, CLI+TUI commands, hotkeys table, python-curses-specific install/uninstall URLs
+- **`install.sh`** — Added `mkdir -p` before deps check, clone with `--branch python-curses`, updated messages

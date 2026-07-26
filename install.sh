@@ -5,7 +5,9 @@ TARGET_REPO_DIR="$HOME/.workspace-manager"
 BIN_DIR="$HOME/.local/bin"
 DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"
 
-echo "Initializing Workspace Manager installation pipeline..."
+echo "Initializing WSM Python-curses installation..."
+
+mkdir -p "$TARGET_REPO_DIR"
 
 # ── Dependency check & install ──────────────────────────────────
 
@@ -108,7 +110,7 @@ if [ ! -t 0 ]; then
     if [ -d "$TARGET_REPO_DIR" ]; then
         cd "$TARGET_REPO_DIR" && git pull
     else
-        git clone "https://github.com/cy83rt00n/workspace-manager" "$TARGET_REPO_DIR"
+        git clone --branch python-curses "https://github.com/cy83rt00n/workspace-manager" "$TARGET_REPO_DIR"
     fi
 else
     echo "[Local Mode] Deploying from local source tree..."
@@ -171,7 +173,7 @@ inject_hook "$HOME/.bashrc"
 inject_hook "$HOME/.zshrc"
 
 echo "=========================================================="
-echo "Installation complete!"
+echo "WSM Python-curses installation complete!"
 echo "Reload: source ~/.bashrc  (or: source ~/.zshrc)"
 echo "Commands:"
 echo "  wsm       [command] [project]   (default interface)"
