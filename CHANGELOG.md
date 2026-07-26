@@ -20,3 +20,8 @@
 ## Added
 
 - **`.wsm`** — Ported `delete` command (aliases: `del`, `rm`) from python-curses: safety check (mounted = refuse), confirmation prompt
+
+## Changed
+
+- **`README.md`** — Rewritten for cli branch: Bash-only docs, cli-specific install/uninstall URLs
+- **`install.sh`** — Added `mkdir -p` before deps check, clone with `--branch cli`, updated messages

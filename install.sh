@@ -4,7 +4,9 @@ set -euo pipefail
 TARGET_REPO_DIR="$HOME/.workspace-manager"
 DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"
 
-echo "Initializing Workspace Manager installation pipeline..."
+echo "Initializing WSM CLI (Bash) installation..."
+
+mkdir -p "$TARGET_REPO_DIR"
 
 # ── Проверка и установка зависимостей ──────────────────────────
 
@@ -108,7 +110,7 @@ if [ ! -t 0 ]; then
     if [ -d "$TARGET_REPO_DIR" ]; then
         cd "$TARGET_REPO_DIR" && git pull
     else
-        git clone "https://github.com/cy83rt00n/workspace-manager" "$TARGET_REPO_DIR"
+        git clone --branch cli "https://github.com/cy83rt00n/workspace-manager" "$TARGET_REPO_DIR"
     fi
 else
     echo "[Local Mode] Deploying from local source tree..."
@@ -136,7 +138,7 @@ inject_hook "$HOME/.bashrc"
 inject_hook "$HOME/.zshrc"
 
 echo "=========================================================="
-echo "Installation complete!"
+echo "WSM CLI (Bash) installation complete!"
 echo "Please reload your profile: 'source ~/.bashrc' or 'source ~/.zshrc'"
 echo "Commands now available:"
 echo "  -> wsm [command] [project]  (CLI Utility)"
