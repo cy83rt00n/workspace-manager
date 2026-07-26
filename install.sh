@@ -16,7 +16,16 @@ echo "  1) CLI (Bash)        — minimal, pure Bash, no Python"
 echo "  2) Python-curses     — full TUI, Python-based"
 echo ""
 echo -n "Choice [1]: "
-read -r choice
+if [ -t 0 ]; then
+    read -r choice
+elif [ -e /dev/tty ]; then
+    read -r choice < /dev/tty
+else
+    echo ""
+    echo "[Headless mode] Defaulting to CLI (Bash)."
+    echo "Use --branch flag or specific install URL to pick version."
+    choice="1"
+fi
 choice="${choice:-1}"
 
 case "$choice" in
