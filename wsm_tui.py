@@ -6,12 +6,40 @@ import os
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from wsm_core import (CONF_DIR, VERSION, parse_toml, is_mounted,
                        load_projects, wsm_cli, check_net, match_key)
 from wsm_render import (safe_addstr, draw_box, draw_vdivider, draw_bar,
                          HL, VL, UL, UR, LL, LR, LT, RT, TT, BT)
+
+SPINNER_CHARS = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+
+
+def spinner_modal(stdscr, action, project):
+    """Run wsm_cli in thread while showing spinner modal."""
+    result = [None, None, -1]
+    def _run():
+        stdout, stderr, rc = wsm_cli(action, project)
+        result[0], result[1], result[2] = stdout, stderr, rc
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    max_h, max_w = stdscr.getmaxyx()
+    dh, dw = 5, 30
+    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
+    i = 0
+    while t.is_alive():
+        win.erase()
+        draw_box(win, 0, 0, dh, dw, 'Working', curses.color_pair(6))
+        safe_addstr(win, 2, 3, f'  {SPINNER_CHARS[i % len(SPINNER_CHARS)]}  Please wait...')
+        win.refresh()
+        i += 1
+        curses.napms(80)
+    t.join()
+    return result[0], result[1], result[2]
 
 MIN_W, MIN_H = 60, 16
 
@@ -475,7 +503,7 @@ def _do_global_action(action, projects, pidx, stdscr):
         return _edit_config(projects, pidx, stdscr)
     else:
         # mount / run / connect / unmount
-        r = wsm_cli(action, project)
+        r = spinner_modal(stdscr, action, project)
         if r[2] != 0 and r[1]:
             _show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
         return True
@@ -504,7 +532,7 @@ def _do_action(aidx, projects, pidx, stdscr):
 
     if aidx < 3:
         if aidx in context:
-            r = wsm_cli(context[aidx], project)
+            r = spinner_modal(stdscr, context[aidx], project)
             if r[2] != 0 and r[1]:
                 _show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
         return True

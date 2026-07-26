@@ -2,33 +2,54 @@
 """WSM Workspace Manager — CLI front-end."""
 
 import argparse
+import itertools
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from wsm_core import CONF_DIR, VERSION, parse_toml, is_mounted, check_net
+
+SPINNER = itertools.cycle('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏')
+
+
+def spin(msg):
+    """Print spinning progress indicator on current line."""
+    print(f'\r{msg} {next(SPINNER)}', end='', flush=True)
+
+
+def spin_done(msg='OK'):
+    """Clear spinner line and print completion."""
+    tw = os.get_terminal_size().columns
+    print(f'\r{" " * tw}\r{msg}', flush=True)
 
 
 def cmd_mount(remote_path, local_mount):
     """Mount remote path via SSHFS."""
     alias = remote_path.split(':')[0]
-    print('Resolving host and checking network...', end='', flush=True)
+    spin(f'Resolving {alias}')
     ok, err = check_net(alias)
     if not ok:
-        print(f' [FAILED]\n{err}', file=sys.stderr)
+        spin_done(f'FAILED: {err}')
         sys.exit(1)
-    print(' [OK]')
+    spin_done(f'Resolved {alias}')
 
     Path(local_mount).mkdir(parents=True, exist_ok=True)
-    print(f'Mounting {alias} to {local_mount}...')
-    subprocess.run([
+    proc = subprocess.Popen([
         'sshfs', remote_path, local_mount,
         '-o', 'cache=yes,cache_stat_timeout=1200,cache_dir_timeout=1200,'
               'cache_link_timeout=1200',
         '-o', 'compression=yes,reconnect,ServerAliveInterval=15',
         '-o', 'kernel_cache,noauto_cache',
-    ])
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    while proc.poll() is None:
+        spin(f'Mounting {alias} -> {local_mount}')
+        time.sleep(0.1)
+    if proc.returncode == 0:
+        spin_done(f'Mounted {alias}')
+    else:
+        spin_done(f'Mount FAILED (code {proc.returncode})')
 
 
 def cmd_unmount(local_mount):
@@ -59,12 +80,12 @@ def cmd_connect(remote_path, editor_cmd):
     ssh_alias = remote_path.split(':')[0]
     remote_dir = remote_path[len(ssh_alias):]
 
-    print('Checking network for native SSH remoting...', end='', flush=True)
+    spin(f'Probing {ssh_alias}')
     ok, err = check_net(ssh_alias)
     if not ok:
-        print(f' [FAILED]\n{err}', file=sys.stderr)
+        spin_done(f'FAILED: {err}')
         sys.exit(1)
-    print(' [OK]')
+    spin_done(f'Reachable: {ssh_alias}')
 
     if editor_cmd == 'code':
         uri = f'vscode-remote://ssh-remote+{ssh_alias}{remote_dir}'
@@ -87,16 +108,17 @@ def cmd_run(remote_path, local_mount, editor_cmd, _project):
     if not is_mounted(local_mount):
         cmd_mount(remote_path, local_mount)
 
-    print('Waiting for VFS layer to stabilize...', end='', flush=True)
     timeout = 50
     while not is_mounted(local_mount):
+        spin(f'VFS wait {local_mount}')
+        time.sleep(0.1)
         timeout -= 1
         if timeout <= 0:
-            print(' [TIMEOUT FAILED]')
+            spin_done('VFS TIMEOUT')
             sys.exit(1)
-    print(' [READY]')
+    spin_done('VFS ready')
 
-    print(f'Launching workspace in background ({editor_cmd})...')
+    print(f'Launching {editor_cmd}...')
     subprocess.Popen(
         [editor_cmd, local_mount],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
