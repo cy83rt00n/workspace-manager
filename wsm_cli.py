@@ -1,76 +1,22 @@
 #!/usr/bin/env python3
-"""WSM Workspace Manager — CLI tool for remote project management via SSHFS."""
+"""WSM Workspace Manager — CLI front-end."""
 
 import argparse
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
 
-CONF_DIR = Path.home() / '.config' / 'workspace'
-VERSION = '2.0.0'
-
-
-def parse_toml(filepath, key):
-    """Parse TOML key = "value" from config file."""
-    try:
-        with open(filepath) as f:
-            for line in f:
-                m = re.match(rf'^{key}\s*=\s*"(.+)"', line)
-                if m:
-                    return m.group(1)
-    except FileNotFoundError:
-        pass
-    return ''
-
-
-def check_net(alias):
-    """Resolve SSH alias and verify host reachability via nc."""
-    try:
-        result = subprocess.run(
-            ['ssh', '-G', alias], capture_output=True, text=True, timeout=5
-        )
-        ssh_info = result.stdout
-    except Exception:
-        print(f' [ERROR] SSH alias {alias!r} not found', file=sys.stderr)
-        return False
-
-    host = ''
-    port = '22'
-    for line in ssh_info.split('\n'):
-        if re.match(r'^hostname\s+', line, re.IGNORECASE):
-            host = line.split(None, 1)[1]
-        if re.match(r'^port\s+', line, re.IGNORECASE):
-            port = line.split(None, 1)[1]
-
-    if not host:
-        print(f' [ERROR] Cannot resolve hostname for {alias!r}', file=sys.stderr)
-        return False
-
-    result = subprocess.run(
-        ['nc', '-z', '-w', '2', host, port],
-        capture_output=True, timeout=5,
-    )
-    if result.returncode != 0:
-        print(f' [ERROR] Host {host}:{port} is unreachable. Check network or VPN.',
-              file=sys.stderr)
-        return False
-    return True
-
-
-def is_mounted(path):
-    """Check if path is a mountpoint."""
-    return subprocess.run(
-        ['mountpoint', '-q', path], capture_output=True
-    ).returncode == 0
+from wsm_core import CONF_DIR, VERSION, parse_toml, is_mounted, check_net
 
 
 def cmd_mount(remote_path, local_mount):
     """Mount remote path via SSHFS."""
     alias = remote_path.split(':')[0]
     print('Resolving host and checking network...', end='', flush=True)
-    if not check_net(alias):
+    ok, err = check_net(alias)
+    if not ok:
+        print(f' [FAILED]\n{err}', file=sys.stderr)
         sys.exit(1)
     print(' [OK]')
 
@@ -109,16 +55,14 @@ def cmd_unmount(local_mount):
 
 
 def cmd_connect(remote_path, editor_cmd):
-    """Launch editor native SSH remoting (bypasses FUSE).
-
-    VS Code: code --folder-uri=vscode-remote://ssh-remote+<alias><path>
-    Zed:    zed ssh://<alias><path>
-    """
+    """Launch editor native SSH remoting (bypasses FUSE)."""
     ssh_alias = remote_path.split(':')[0]
-    remote_dir = remote_path[len(ssh_alias):]  # preserves leading ':'
+    remote_dir = remote_path[len(ssh_alias):]
 
     print('Checking network for native SSH remoting...', end='', flush=True)
-    if not check_net(ssh_alias):
+    ok, err = check_net(ssh_alias)
+    if not ok:
+        print(f' [FAILED]\n{err}', file=sys.stderr)
         sys.exit(1)
     print(' [OK]')
 
@@ -138,7 +82,7 @@ def cmd_connect(remote_path, editor_cmd):
         )
 
 
-def cmd_run(remote_path, local_mount, editor_cmd, project):
+def cmd_run(remote_path, local_mount, editor_cmd, _project):
     """Mount (if needed) and launch editor."""
     if not is_mounted(local_mount):
         cmd_mount(remote_path, local_mount)
@@ -171,7 +115,8 @@ def list_projects():
 def cmd_delete(project, conf, local_mount, force=False):
     """Delete project config with confirmation and safety checks."""
     if local_mount and is_mounted(local_mount):
-        print(f'Error: {project} is currently mounted. Unmount first.', file=sys.stderr)
+        print(f'Error: {project} is currently mounted. Unmount first.',
+              file=sys.stderr)
         sys.exit(1)
 
     if not force:
@@ -190,19 +135,15 @@ def main():
     )
     parser.add_argument(
         'command', nargs='?',
-        choices=['mount', 'm', 'unmount', 'u', 'run', 'r', 'connect', 'c', 'ssh',
-                 'delete', 'del', 'rm'],
+        choices=['mount', 'm', 'unmount', 'u', 'run', 'r',
+                 'connect', 'c', 'ssh', 'delete', 'del', 'rm'],
         help='Command to execute',
     )
     parser.add_argument('project', nargs='?', help='Project name')
-    parser.add_argument(
-        '--list', '-l', action='store_true',
-        help='List available projects',
-    )
-    parser.add_argument(
-        '--force', '-f', action='store_true',
-        help='Skip confirmation (for delete)',
-    )
+    parser.add_argument('--list', '-l', action='store_true',
+                        help='List available projects')
+    parser.add_argument('--force', '-f', action='store_true',
+                        help='Skip confirmation (for delete)')
 
     args = parser.parse_args()
 
@@ -224,10 +165,8 @@ def main():
 
     conf = CONF_DIR / f'{args.project}.conf'
     if not conf.exists():
-        print(
-            f'Error: Project config {args.project!r} not found in {CONF_DIR}',
-            file=sys.stderr,
-        )
+        print(f'Error: Project config {args.project!r} not found in {CONF_DIR}',
+              file=sys.stderr)
         sys.exit(1)
 
     remote_path = parse_toml(conf, 'remote_path')

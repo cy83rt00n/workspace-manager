@@ -20,9 +20,9 @@ echo ""
 remove_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if grep -q "Workspace Manager.*PATH" "$rc_file" 2>/dev/null; then
+        if grep -q "Workspace Manager" "$rc_file" 2>/dev/null; then
             echo "Removing WSM hook from $rc_file..."
-            sed -i '/# Workspace Manager.*PATH/d' "$rc_file"
+            sed -i '/# Workspace Manager/d' "$rc_file"
             sed -i '/export PATH="\$HOME\/.local\/bin:\$PATH"/d' "$rc_file"
         fi
     fi
@@ -31,7 +31,7 @@ remove_hook() {
 remove_hook "$HOME/.bashrc"
 remove_hook "$HOME/.zshrc"
 
-# 2. Remove executables
+# 2. Remove symlinks
 for bin in wsm wsm-tui; do
     if [ -L "${BIN_DIR}/${bin}" ]; then
         echo "Removing ${BIN_DIR}/${bin} symlink..."
@@ -54,6 +54,8 @@ if [ -f "$DEPS_FILE" ]; then
     echo "  sudo pacman -R <package>"
     echo "  brew uninstall <package>"
 fi
+
+echo ""
 
 # 4. Remove repo directory
 if [ -d "$TARGET_REPO_DIR" ]; then

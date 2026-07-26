@@ -71,7 +71,6 @@ INSTALLED_DEPS=()
 for entry in "${REQUIRED_PKGS[@]}"; do
     util="${entry%%:*}"
     desc="${entry##*:}"
-
     if command -v "$util" &>/dev/null; then
         echo "  [✓] $util — $desc"
     else
@@ -115,24 +114,49 @@ else
     echo "[Local Mode] Deploying from local source tree..."
     CURRENT_SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     mkdir -p "$TARGET_REPO_DIR"
-    cp -r "$CURRENT_SOURCE_DIR"/* "$TARGET_REPO_DIR/"
+    rsync -a "$CURRENT_SOURCE_DIR"/ "$TARGET_REPO_DIR"/ \
+        --exclude='.git' --exclude='.gitignore'
 fi
 
 # ── Install executables ─────────────────────────────────────────
 
 mkdir -p "$BIN_DIR"
-chmod +x "$TARGET_REPO_DIR/wsm"
-chmod +x "$TARGET_REPO_DIR/wsm-tui"
-ln -sf "$TARGET_REPO_DIR/wsm" "${BIN_DIR}/wsm"
-ln -sf "$TARGET_REPO_DIR/wsm-tui" "${BIN_DIR}/wsm-tui"
+for mod in wsm_core.py wsm_render.py wsm_cli.py wsm_tui.py; do
+    if [ -f "$TARGET_REPO_DIR/$mod" ]; then
+        chmod +x "$TARGET_REPO_DIR/$mod"
+    fi
+done
 
-# ── Shell PATH hook ──────────────────────────────────────────────
+# Always symlink TUI
+ln -sf "$TARGET_REPO_DIR/wsm_tui.py" "${BIN_DIR}/wsm-tui"
+
+# Ask which interface to use as default 'wsm'
+echo ""
+echo "Select default interface for 'wsm' command:"
+echo "  1) CLI  — fast terminal commands"
+echo "  2) TUI  — interactive Midnight Commander style"
+echo -n "Choice [1]: "
+read -r choice
+choice="${choice:-1}"
+
+case "$choice" in
+    2)
+        ln -sf "$TARGET_REPO_DIR/wsm_tui.py" "${BIN_DIR}/wsm"
+        echo "Default: wsm → TUI"
+        ;;
+    *)
+        ln -sf "$TARGET_REPO_DIR/wsm_cli.py" "${BIN_DIR}/wsm"
+        echo "Default: wsm → CLI  (wsm-tui available separately)"
+        ;;
+esac
+
+# ── Shell PATH hook ─────────────────────────────────────────────
 
 inject_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if ! grep -q "export PATH=\"\$HOME/.local/bin:\$PATH\"" "$rc_file"; then
-            echo -e "\n# Workspace Manager — ensure ~/.local/bin in PATH\nexport PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$rc_file"
+        if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$rc_file"; then
+            echo -e "\n# Workspace Manager\nexport PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$rc_file"
             echo "Hook injected into $rc_file"
         fi
     fi
@@ -145,6 +169,6 @@ echo "=========================================================="
 echo "Installation complete!"
 echo "Reload: source ~/.bashrc  (or: source ~/.zshrc)"
 echo "Commands:"
-echo "  wsm       [command] [project]   CLI"
-echo "  wsm-tui                         Interactive TUI"
+echo "  wsm       [command] [project]   (default interface)"
+echo "  wsm-tui                         (interactive TUI)"
 echo "=========================================================="

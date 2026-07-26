@@ -8,151 +8,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-CONF_DIR = Path.home() / '.config' / 'workspace'
-VERSION = '2.0.0'
+from wsm_core import (CONF_DIR, VERSION, parse_toml, is_mounted,
+                       load_projects, wsm_cli, check_net, match_key)
+from wsm_render import (safe_addstr, draw_box, draw_vdivider, draw_bar,
+                         HL, VL, UL, UR, LL, LR, LT, RT, TT, BT)
+
 MIN_W, MIN_H = 60, 16
-
-# ── Shared helpers ────────────────────────────────────────────────
-
-def parse_toml(filepath, key):
-    try:
-        with open(filepath) as f:
-            for line in f:
-                m = re.match(rf'^{key}\s*=\s*\"(.+)\"', line)
-                if m:
-                    return m.group(1)
-    except FileNotFoundError:
-        pass
-    return ''
-
-
-def is_mounted(path):
-    return subprocess.run(
-        ['mountpoint', '-q', path], capture_output=True
-    ).returncode == 0
-
-
-def load_projects():
-    projects = []
-    if not CONF_DIR.exists():
-        return projects
-    for conf in sorted(CONF_DIR.glob('*.conf')):
-        name = conf.stem
-        local_mount = parse_toml(conf, 'local_mount')
-        remote_path = parse_toml(conf, 'remote_path')
-        editor_cmd = parse_toml(conf, 'editor_cmd')
-        mounted = bool(local_mount and is_mounted(local_mount))
-        projects.append({
-            'name': name,
-            'remote_path': remote_path,
-            'local_mount': local_mount,
-            'editor_cmd': editor_cmd,
-            'mounted': mounted,
-            'conf': str(conf),
-        })
-    return projects
-
-
-def wsm_cli(action, project):
-    wsm_path = Path(__file__).resolve().parent / 'wsm'
-    result = subprocess.run(
-        [str(wsm_path), action, project],
-        capture_output=True, text=True, timeout=30,
-    )
-    return result.stdout, result.stderr, result.returncode
-
-
-def check_net(alias):
-    """Resolve SSH alias and verify host reachability."""
-    try:
-        r = subprocess.run(
-            ['ssh', '-G', alias], capture_output=True, text=True, timeout=5
-        )
-        ssh_info = r.stdout
-    except Exception:
-        return False, f'SSH alias {alias!r} not found'
-
-    host, port = '', '22'
-    for line in ssh_info.split('\n'):
-        if re.match(r'^hostname\s+', line, re.IGNORECASE):
-            host = line.split(None, 1)[1]
-        if re.match(r'^port\s+', line, re.IGNORECASE):
-            port = line.split(None, 1)[1]
-
-    if not host:
-        return False, f'Cannot resolve hostname for {alias!r}'
-
-    r = subprocess.run(
-        ['nc', '-z', '-w', '2', host, port],
-        capture_output=True, timeout=5,
-    )
-    if r.returncode != 0:
-        return False, f'Host {host}:{port} is unreachable'
-    return True, ''
-
-
-# ── Box drawing helpers ────────────────────────────────────────────
-
-HL = '─'; VL = '│'
-UL = '┌'; UR = '┐'; LL = '└'; LR = '┘'
-LT = '├'; RT = '┤'; TT = '┬'; BT = '┴'
-
-def safe_addstr(win, y, x, text, color=0):
-    h, w = win.getmaxyx()
-    if y < 0 or y >= h or x >= w:
-        return
-    # Block only absolute bottom-right corner — not every right edge
-    if y == h - 1:
-        text = text[:w - x - 1] if w - x - 1 >= 0 else ''
-    else:
-        text = text[:w - x] if w - x >= 0 else ''
-    if text:
-        win.addstr(y, x, text, color)
-
-
-def _match_key(key, *chars):
-    """Match getch() code against any of the given characters (any layout)."""
-    for c in chars:
-        if key == ord(c):
-            return True
-    # Handle wide-char (Unicode) codepoints from get_wch / getch
-    if key > 255:
-        try:
-            if chr(key) in chars:
-                return True
-        except (ValueError, OverflowError):
-            pass
-    return False
-
-
-def draw_box(win, y, x, h, w, title='', color=0):
-    safe_addstr(win, y, x, UL, color)
-    safe_addstr(win, y, x + w - 1, UR, color)
-    safe_addstr(win, y + h - 1, x, LL, color)
-    safe_addstr(win, y + h - 1, x + w - 1, LR, color)
-    safe_addstr(win, y, x + 1, HL * (w - 2), color)
-    safe_addstr(win, y + h - 1, x + 1, HL * (w - 2), color)
-    for i in range(1, h - 1):
-        safe_addstr(win, y + i, x, VL, color)
-        safe_addstr(win, y + i, x + w - 1, VL, color)
-    if title:
-        t = f' {title} '
-        tx = x + (w - len(t)) // 2
-        safe_addstr(win, y, tx, t, color | curses.A_BOLD)
-    return (y + 1, x + 1, h - 2, w - 2)
-
-
-def draw_vdivider(win, y, x, h, color=0):
-    safe_addstr(win, y, x, TT, color)
-    safe_addstr(win, y + h - 1, x, BT, color)
-    for i in range(1, h - 1):
-        safe_addstr(win, y + i, x, VL, color)
-
-
-def draw_bar(win, y, x, w, color=0):
-    safe_addstr(win, y, x, LT, color)
-    safe_addstr(win, y, x + w - 1, RT, color)
-    safe_addstr(win, y, x + 1, HL * (w - 2), color)
 
 
 # ── Dialogs ────────────────────────────────────────────────────────
@@ -364,7 +225,7 @@ def main(stdscr):
 
         if w < MIN_W or h < MIN_H:
             key = too_small_dialog(stdscr)
-            if key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й'):
+            if key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й'):
                 break
             stdscr.erase(); stdscr.refresh()
             needs_refresh = True
@@ -504,7 +365,7 @@ def main(stdscr):
         if isinstance(key, str):
             key = ord(key)
 
-        if key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й') or key == curses.KEY_F10:
+        if key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й') or key == curses.KEY_F10:
             break
         if key == curses.KEY_F1:
             help_dialog(stdscr); needs_refresh = True; continue
@@ -518,16 +379,16 @@ def main(stdscr):
         # Navigation
         num_ra = 7  # right-panel action count (3 context + 4 tools)
         if focus == 'left':
-            if key in (curses.KEY_DOWN,) or _match_key(key, 'j', 'о'):
+            if key in (curses.KEY_DOWN,) or match_key(key, 'j', 'о'):
                 pidx = min(pidx + 1, len(projects) - 1) if projects else 0
-            elif key in (curses.KEY_UP,) or _match_key(key, 'k', 'л'):
+            elif key in (curses.KEY_UP,) or match_key(key, 'k', 'л'):
                 pidx = max(pidx - 1, 0)
             elif key == 10 and projects:
                 focus = 'right'; aidx = 0
         elif focus == 'right' and projects:
-            if key in (curses.KEY_DOWN,) or _match_key(key, 'j', 'о'):
+            if key in (curses.KEY_DOWN,) or match_key(key, 'j', 'о'):
                 aidx = min(aidx + 1, num_ra - 1)
-            elif key in (curses.KEY_UP,) or _match_key(key, 'k', 'л'):
+            elif key in (curses.KEY_UP,) or match_key(key, 'k', 'л'):
                 aidx = max(aidx - 1, 0)
             elif key == 10:
                 needs_refresh |= _do_action(aidx, projects, pidx, stdscr)
@@ -683,15 +544,15 @@ def _delete_config(projects, pidx, stdscr):
         key = win.get_wch()
         if isinstance(key, str):
             key = ord(key)
-        if key in (curses.KEY_LEFT,) or _match_key(key, 'h', 'H', 'р', 'Р'):
+        if key in (curses.KEY_LEFT,) or match_key(key, 'h', 'H', 'р', 'Р'):
             choice = 0
-        elif key in (curses.KEY_RIGHT,) or _match_key(key, 'l', 'L', 'д', 'Д'):
+        elif key in (curses.KEY_RIGHT,) or match_key(key, 'l', 'L', 'д', 'Д'):
             choice = 1
         elif key == 10:
             break
-        elif key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й', 'n', 'N', 'т', 'Т'):
+        elif key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й', 'n', 'N', 'т', 'Т'):
             choice = 1; break
-        elif _match_key(key, 'y', 'Y', 'н', 'Н'):
+        elif match_key(key, 'y', 'Y', 'н', 'Н'):
             choice = 0; break
 
     if choice == 0:
