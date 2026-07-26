@@ -67,7 +67,7 @@ def load_projects():
     projects = []
     if not CONF_DIR.exists():
         return projects
-    for conf in sorted(CONF_DIR.glob('*.conf')):
+    for conf in sorted(CONF_DIR.glob('*.config.toml')):
         name = conf.stem
         local_mount = parse_toml(conf, 'local_mount')
         remote_path = parse_toml(conf, 'remote_path')
@@ -125,7 +125,7 @@ def save_config(alias, remote_path, local_mount, editor_cmd='zed',
                 old_conf=None):
     """Write project config file.  If old_conf given and alias changed, delete old."""
     CONF_DIR.mkdir(parents=True, exist_ok=True)
-    new_conf = CONF_DIR / f'{alias}.conf'
+    new_conf = CONF_DIR / f'{alias}.config.toml'
     if old_conf and str(old_conf) != str(new_conf) and Path(old_conf).exists():
         Path(old_conf).unlink()
     with open(new_conf, 'w') as f:

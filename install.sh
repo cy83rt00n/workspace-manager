@@ -163,7 +163,7 @@ esac
 
 mkdir -p "$HOME/.config/workspace"
 if [ -f "$TARGET_REPO_DIR/demo.config.toml" ]; then
-    cp "$TARGET_REPO_DIR/demo.config.toml" "$HOME/.config/workspace/demo.conf"
+    cp "$TARGET_REPO_DIR/demo.config.toml" "$HOME/.config/workspace/demo.config.toml"
     echo "Demo config copied to ~/.config/workspace/"
 fi
 

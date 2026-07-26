@@ -141,7 +141,7 @@ def list_projects():
     if not CONF_DIR.exists():
         return []
     return sorted(
-        f.stem for f in CONF_DIR.glob('*.conf') if f.is_file()
+        f.stem for f in CONF_DIR.glob('*.config.toml') if f.is_file()
     )
 
 
@@ -197,7 +197,7 @@ def main():
         print('Error: project name required', file=sys.stderr)
         sys.exit(1)
 
-    conf = CONF_DIR / f'{args.project}.conf'
+    conf = CONF_DIR / f'{args.project}.config.toml'
     if not conf.exists():
         print(f'Error: Project config {args.project!r} not found in {CONF_DIR}',
               file=sys.stderr)

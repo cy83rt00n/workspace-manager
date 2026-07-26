@@ -458,7 +458,7 @@ def _delete_config(projects, pidx, stdscr):
 
     lines = [
         f'Delete config "{name}"?',
-        f'File: {CONF_DIR / (name + ".conf")}',
+        f'File: {CONF_DIR / (name + ".config.toml")}',
     ]
     if confirm_dialog(stdscr, 'Confirm Delete', lines):
         try:
