@@ -168,19 +168,40 @@ def list_projects():
     )
 
 
+def cmd_delete(project, conf, local_mount, force=False):
+    """Delete project config with confirmation and safety checks."""
+    if local_mount and is_mounted(local_mount):
+        print(f'Error: {project} is currently mounted. Unmount first.', file=sys.stderr)
+        sys.exit(1)
+
+    if not force:
+        ans = input(f'Delete config "{project}"? [y/N]: ').strip().lower()
+        if ans not in ('y', 'yes'):
+            print('Cancelled.')
+            sys.exit(0)
+
+    conf.unlink()
+    print(f'Config "{project}" deleted.')
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=f'Workspace Manager v{VERSION} (Python)',
     )
     parser.add_argument(
         'command', nargs='?',
-        choices=['mount', 'm', 'unmount', 'u', 'run', 'r', 'connect', 'c', 'ssh'],
+        choices=['mount', 'm', 'unmount', 'u', 'run', 'r', 'connect', 'c', 'ssh',
+                 'delete', 'del', 'rm'],
         help='Command to execute',
     )
     parser.add_argument('project', nargs='?', help='Project name')
     parser.add_argument(
         '--list', '-l', action='store_true',
         help='List available projects',
+    )
+    parser.add_argument(
+        '--force', '-f', action='store_true',
+        help='Skip confirmation (for delete)',
     )
 
     args = parser.parse_args()
@@ -223,6 +244,8 @@ def main():
         cmd_unmount(local_mount)
     elif cmd in ('connect', 'c', 'ssh'):
         cmd_connect(remote_path, editor_cmd)
+    elif cmd in ('delete', 'del', 'rm'):
+        cmd_delete(args.project, conf, local_mount, args.force)
 
 
 if __name__ == '__main__':
