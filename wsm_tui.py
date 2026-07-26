@@ -18,8 +18,8 @@ MIN_W, MIN_H = 60, 16
 
 # ── Dialogs ────────────────────────────────────────────────────────
 
-def create_config_dialog(stdscr):
-    """Create project config — manual echo, no curses.echo()."""
+def create_config_dialog(stdscr, initial=None):
+    """Create or edit project config.  Pass initial dict to pre-fill fields."""
     max_h, max_w = stdscr.getmaxyx()
     dh, dw = 14, min(62, max_w - 2)
     y0 = max(0, (max_h - dh) // 2)
@@ -29,13 +29,20 @@ def create_config_dialog(stdscr):
     curses.curs_set(1)
 
     fields = ['Alias:', 'Remote (alias:/path):', 'Local mount:', 'Editor command:']
-    values = ['', '', '', 'zed']
+    title = 'Edit Config' if initial else 'Create Config'
+    if initial:
+        remote = initial.get('remote_path', '')
+        local = initial.get('local_mount', '')
+        editor = initial.get('editor_cmd', 'zed')
+        values = [initial.get('name', ''), remote, local, editor]
+    else:
+        values = ['', '', '', 'zed']
     cur = 0
     msg = ''
 
     while True:
         win.erase()
-        draw_box(win, 0, 0, dh, dw, 'Create Config', curses.color_pair(3))
+        draw_box(win, 0, 0, dh, dw, title, curses.color_pair(3))
 
         for i, label in enumerate(fields):
             y = 2 + i * 3
@@ -157,10 +164,10 @@ def help_dialog(stdscr):
         '  Enter          Execute',
         '  Esc            Back to left panel',
         '',
-        '  F3  / m  Mount    F6  / u  Unmount',
-        '  F4  / r  Run      F7  / c  New config',
-        '  F5  / s  Connect  F8  / k  SSH keys',
-        '                    F9  / d  Desktop',
+        '  F3 / m  Mount     F6 / u  Unmount',
+        '  F4 / r  Run       F7 / c  New config',
+        '  F5 / s  Connect   F8 / e  Edit config',
+        '  Del / x  Delete   F9 / d  Desktop',
         '  F1     Help       F10 / q  Quit',
         '',
         f'Configs: {CONF_DIR}',
@@ -332,10 +339,10 @@ def main(stdscr):
                 safe_addstr(stdscr, info_y, rx, f'Status: {status}'[:rw],
                             curses.color_pair(1) if sel['mounted'] else curses.color_pair(2))
 
-            tools_y = ry + body_h - 11
+            tools_y = ry + body_h - 13
             if tools_y > info_y + 2:
                 safe_addstr(stdscr, tools_y, rx, '─' * min(rw, right_w - 4), curses.color_pair(5))
-                tools = ['New config', 'SSH keys', 'Desktop entry', 'Delete config']
+                tools = ['New config', 'Edit config', 'SSH keys', 'Desktop entry', 'Delete config']
                 for i, tool in enumerate(tools):
                     y = tools_y + 1 + i * 2
                     if y >= body_y + body_h - 2: break
@@ -377,7 +384,7 @@ def main(stdscr):
         needs_refresh |= _handle_key(key, projects, pidx, aidx, focus, stdscr)
 
         # Navigation
-        num_ra = 7  # right-panel action count (3 context + 4 tools)
+        num_ra = 8  # right-panel action count (3 context + 5 tools)
         if focus == 'left':
             if key in (curses.KEY_DOWN,) or match_key(key, 'j', 'о'):
                 pidx = min(pidx + 1, len(projects) - 1) if projects else 0
@@ -408,8 +415,8 @@ def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
     # Single-key shortcuts with Russian layout fallbacks
     for ch, act in [
         ('mMьЬ', 'mount'), ('rRкК', 'run'), ('sSыЫ', 'connect'),
-        ('uUгГ', 'unmount'), ('cCсС', 'new'), ('kKлЛ', 'keys'),
-        ('dDвВ', 'desktop'), ('xXчЧ', 'delete'),
+        ('uUгГ', 'unmount'), ('cCсС', 'new'), ('eEуУ', 'edit'),
+        ('kKлЛ', 'keys'), ('dDвВ', 'desktop'), ('xXчЧ', 'delete'),
     ]:
         for c in ch:
             singles[ord(c)] = act
@@ -449,6 +456,8 @@ def _do_global_action(action, projects, pidx, stdscr):
         stdscr.erase(); stdscr.refresh(); return True
     elif action == 'delete':
         return _delete_config(projects, pidx, stdscr)
+    elif action == 'edit':
+        return _edit_config(projects, pidx, stdscr)
     else:
         # mount / run / connect / unmount
         r = wsm_cli(action, project)
@@ -501,14 +510,48 @@ def _do_action(aidx, projects, pidx, stdscr):
                 f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
         stdscr.erase(); stdscr.refresh(); return True
     elif aidx == 4:
+        return _edit_config(projects, pidx, stdscr)
+    elif aidx == 5:
         generate_key_dialog(stdscr)
         stdscr.erase(); stdscr.refresh(); return True
-    elif aidx == 5:
+    elif aidx == 6:
         desktop_snippet(stdscr, project)
         stdscr.erase(); stdscr.refresh(); return True
-    elif aidx == 6:
+    elif aidx == 7:
         return _delete_config(projects, pidx, stdscr)
     return False
+
+
+def _edit_config(projects, pidx, stdscr):
+    """Edit selected project config — pre-fills fields from existing config."""
+    if not projects:
+        return False
+    proj = projects[pidx]
+    initial = {
+        'name': proj['name'],
+        'remote_path': proj['remote_path'] or '',
+        'local_mount': proj['local_mount'] or '',
+        'editor_cmd': proj['editor_cmd'] or 'zed',
+    }
+    data = create_config_dialog(stdscr, initial)
+    if data:
+        alias = data['remote_path'].split(':')[0]
+        ok, err = check_net(alias)
+        if not ok:
+            _show_msg(stdscr, f'Network check FAILED: {err}')
+            stdscr.erase(); stdscr.refresh()
+            return True
+        old_conf = Path(proj['conf'])
+        new_conf = CONF_DIR / f'{data["alias"]}.conf'
+        if str(old_conf) != str(new_conf) and old_conf.exists():
+            old_conf.unlink()
+        CONF_DIR.mkdir(parents=True, exist_ok=True)
+        with open(new_conf, 'w') as f:
+            f.write(f'remote_path = "{data["remote_path"]}"\n')
+            f.write(f'local_mount = "{data["local_mount"]}"\n')
+            f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+    stdscr.erase(); stdscr.refresh()
+    return True
 
 
 def _delete_config(projects, pidx, stdscr):
