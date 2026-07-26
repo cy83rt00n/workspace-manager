@@ -112,7 +112,17 @@ def safe_addstr(win, y, x, text, color=0):
 
 def _match_key(key, *chars):
     """Match getch() code against any of the given characters (any layout)."""
-    return key in {ord(c) for c in chars}
+    for c in chars:
+        if key == ord(c):
+            return True
+    # Handle wide-char (Unicode) codepoints from get_wch / getch
+    if key > 255:
+        try:
+            if chr(key) in chars:
+                return True
+        except (ValueError, OverflowError):
+            pass
+    return False
 
 
 def draw_box(win, y, x, h, w, title='', color=0):
@@ -286,11 +296,11 @@ def help_dialog(stdscr):
         '  Enter          Execute',
         '  Esc            Back to left panel',
         '',
-        '  F3 / m  Mount    F6 / u  Unmount',
-        '  F4 / r  Run      F7 / c  New config',
-        '  F5 / s  Connect  F8 / k  SSH keys',
-        '                    F9 / d  Desktop',
-        '  F1  Help         F10 / q  Quit',
+        '  F3 / m  Mount     F6 / u  Unmount',
+        '  F4 / r  Run       F7 / c  New config',
+        '  F5 / s  Connect   F8 / k  SSH keys',
+        '                     F9 / d  Desktop',
+        '  F1    Help         F10    Quit',
         '',
         f'Configs: {CONF_DIR}',
         f'Min size: {MIN_W}x{MIN_H}',
@@ -489,7 +499,10 @@ def main(stdscr):
         stdscr.refresh()
 
         # ── Input ──
-        key = stdscr.getch()
+        key = stdscr.get_wch()
+        # Normalize: string chars → ord, special keys stay as int
+        if isinstance(key, str):
+            key = ord(key)
 
         if key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й') or key == curses.KEY_F10:
             break
@@ -667,7 +680,9 @@ def _delete_config(projects, pidx, stdscr):
             safe_addstr(win, 3, 10 + i * 14, lbl, attr)
         win.refresh()
 
-        key = win.getch()
+        key = win.get_wch()
+        if isinstance(key, str):
+            key = ord(key)
         if key in (curses.KEY_LEFT,) or _match_key(key, 'h', 'H', 'р', 'Р'):
             choice = 0
         elif key in (curses.KEY_RIGHT,) or _match_key(key, 'l', 'L', 'д', 'Д'):
