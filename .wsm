@@ -38,6 +38,7 @@ wsm() {
         echo "  mount, m      Mount remote project directory"
         echo "  unmount, u    Safely unmount project directory"
         echo "  run, r        Verify net, mount project and launch IDE"
+        echo "  connect, c    Bypass FUSE: launch native SSH server (Zed or VS Code)"
         return 0
     fi
 
@@ -111,9 +112,15 @@ wsm() {
                     _wsm_check_net "$ssh_alias" || return 1
                     echo " [OK]"
 
-                    echo "Launching Zed Native SSH Server on $ssh_alias..."
-                    # Вызов встроенного в Zed протокола удаленного проекта
-                    zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+                    if [[ "$EDITOR_CMD" == "code" ]]; then
+                        echo "Launching VS Code Remote-SSH on $ssh_alias..."
+                        # Синтаксис VS Code: code --folder-uri=vscode-remote://ssh-remote+<alias><path>
+                        code --folder-uri="vscode-remote://ssh-remote+${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+                    else
+                        echo "Launching Zed Native SSH Server on $ssh_alias..."
+                        # Синтаксис Zed: zed ssh://<alias><path>
+                        zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+                    fi
                     ;;
         *)
             echo "Unknown command: $cmd. Use: mount, unmount, run" && return 1
