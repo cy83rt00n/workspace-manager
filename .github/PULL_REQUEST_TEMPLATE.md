@@ -6,7 +6,6 @@
 > |---|---|--|
 > | CLI (Bash) | `cli` | `cli` |
 > | Python-curses (TUI) | `python-curses` | `python-curses` |
-> | Установщика / README | `main` | `main` |
 >
 > Переключите **base branch** вверху этой страницы перед отправкой!
 
@@ -20,4 +19,3 @@
 
 - [ ] `cli` — изменения Bash-версии
 - [ ] `python-curses` — изменения Python-версии
-- [ ] `main` — изменения установщика или README

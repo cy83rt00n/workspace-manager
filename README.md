@@ -96,9 +96,8 @@ wsm help                  # Справка / Help
 |---------------------|----------------------|
 | Bash-версию | [`cli`](https://github.com/cy83rt00n/workspace-manager/tree/cli) |
 | Python-версию | [`python-curses`](https://github.com/cy83rt00n/workspace-manager/tree/python-curses) |
-| Установщик / README | [`main`](https://github.com/cy83rt00n/workspace-manager/tree/main) |
 
-Не отправляйте изменения кода версий в `main` — они будут отклонены.
+Прямой пуш в `main` запрещён. Установщик и README обновляются мейнтейнерами.
 
 ---
 
