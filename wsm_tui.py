@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WSM Workspace Manager — interactive curses TUI (MC / Norton style)."""
+"""WSM Workspace Manager — thin TUI client (MC / Norton style)."""
 
 import curses
 import os
@@ -10,12 +10,20 @@ import threading
 from pathlib import Path
 
 from wsm_core import (CONF_DIR, VERSION, parse_toml, is_mounted,
-                       load_projects, wsm_cli, check_net, match_key)
+                       load_projects, wsm_cli, check_net, match_key,
+                       validate_config, save_config, can_delete_config,
+                       delete_config_file, generate_keypair,
+                       desktop_snippet_text)
+
 from wsm_render import (safe_addstr, draw_box, draw_vdivider, draw_bar,
-                         HL, VL, UL, UR, LL, LR, LT, RT, TT, BT)
+                         HL, VL, UL, UR, LL, LR, LT, RT, TT, BT,
+                         show_msg, too_small_dialog, MIN_W, MIN_H,
+                         help_dialog, render_form, confirm_dialog)
 
 SPINNER_CHARS = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 
+
+# ── TUI-specific helpers ────────────────────────────────────────────
 
 def spinner_modal(stdscr, action, project):
     """Run wsm_cli in thread while showing spinner modal."""
@@ -41,137 +49,65 @@ def spinner_modal(stdscr, action, project):
     t.join()
     return result[0], result[1], result[2]
 
-MIN_W, MIN_H = 60, 16
 
-
-# ── Dialogs ────────────────────────────────────────────────────────
-
-def create_config_dialog(stdscr, initial=None):
-    """Create or edit project config.  Pass initial dict to pre-fill fields."""
-    max_h, max_w = stdscr.getmaxyx()
-    dh, dw = 14, min(62, max_w - 2)
-    y0 = max(0, (max_h - dh) // 2)
-    x0 = max(0, (max_w - dw) // 2)
-    win = curses.newwin(dh, dw, y0, x0)
-    win.keypad(True)
-    curses.curs_set(1)
-
-    fields = ['Alias:', 'Remote (alias:/path):', 'Local mount:', 'Editor command:']
+def config_form(stdscr, initial=None):
+    """Create/edit config form — thin wrapper over render_form with validation."""
     title = 'Edit Config' if initial else 'Create Config'
+    fields = [
+        ('Alias:', 'alias'),
+        ('Remote (alias:/path):', 'remote'),
+        ('Local mount:', 'mount'),
+        ('Editor command:', 'editor'),
+    ]
     if initial:
-        remote = initial.get('remote_path', '')
-        local = initial.get('local_mount', '')
-        editor = initial.get('editor_cmd', 'zed')
-        values = [initial.get('name', ''), remote, local, editor]
+        prefill = {
+            'alias': initial.get('name', ''),
+            'remote': initial.get('remote_path', ''),
+            'mount': initial.get('local_mount', ''),
+            'editor': initial.get('editor_cmd', 'zed'),
+        }
     else:
-        values = ['', '', '', 'zed']
-    cur = 0
-    msg = ''
+        prefill = {'editor': 'zed'}
 
-    while True:
-        win.erase()
-        draw_box(win, 0, 0, dh, dw, title, curses.color_pair(3))
+    data = render_form(stdscr, title, fields, initial=prefill)
+    if not data:
+        return None
 
-        for i, label in enumerate(fields):
-            y = 2 + i * 3
-            safe_addstr(win, y, 3, label)
-            display = values[i][:dw - 10]
-            if i == cur:
-                display += '█'
-            attr = curses.A_REVERSE if i == cur else 0
-            safe_addstr(win, y + 1, 3, f'  {display}', attr)
-
-        safe_addstr(win, dh - 2, 2, 'Tab:next  Enter:save  Esc:cancel')
-        if msg:
-            safe_addstr(win, dh - 3, 2, msg, curses.color_pair(6))
-        win.refresh()
-        key = win.getch()
-
-        if key == 27:  # Esc
-            curses.curs_set(0); return None
-        elif key == 9:  # Tab
-            cur = (cur + 1) % len(fields); msg = ''
-        elif key == 10:  # Enter — save
-            alias = ''.join(c for c in values[0] if c.isalnum() or c in '_-')
-            if not alias:
-                msg = 'Alias required (a-z, 0-9, _, -)'
-                continue
-            if values[1].count(':') != 1 or not values[1].split(':')[0]:
-                msg = 'Remote must be alias:/path'
-                continue
-            if not values[2].startswith('/'):
-                msg = 'Local mount must be absolute path'
-                continue
-            curses.curs_set(0)
-            return {
-                'alias': alias,
-                'remote_path': values[1],
-                'local_mount': values[2],
-                'editor_cmd': values[3] or 'zed',
-            }
-        elif key in (curses.KEY_BACKSPACE, 127, 8):
-            values[cur] = values[cur][:-1]; msg = ''
-        elif 32 <= key <= 126:
-            values[cur] += chr(key); msg = ''
+    alias_raw = data.get('alias', '')
+    alias = ''.join(c for c in alias_raw if c.isalnum() or c in '_-')
+    result = {
+        'alias': alias,
+        'remote_path': data.get('remote', ''),
+        'local_mount': data.get('mount', ''),
+        'editor_cmd': data.get('editor', 'zed'),
+        '_raw_alias': alias_raw,
+        '_raw_remote': data.get('remote', ''),
+        '_raw_mount': data.get('mount', ''),
+    }
+    ok, err = validate_config(alias_raw, result['remote_path'], result['local_mount'])
+    if not ok:
+        show_msg(stdscr, err)
+        return None
+    return result
 
 
 def generate_key_dialog(stdscr):
+    """Key generation dialog — thin wrapper over render_form + core."""
+    fields = [('Key name:', 'keyname')]
+    data = render_form(stdscr, 'Generate ED25519 Key', fields)
+    if not data or not data.get('keyname', '').strip():
+        return
+    try:
+        private, public = generate_keypair(data['keyname'])
+        show_msg(stdscr, f'Key generated.\nPrivate: {private}\nPublic:  {public}')
+    except (ValueError, FileExistsError) as e:
+        show_msg(stdscr, str(e))
+
+
+def desktop_dialog(stdscr, project):
+    """Show Desktop Action snippet — thin wrapper over core + render."""
+    lines = desktop_snippet_text(project)
     max_h, max_w = stdscr.getmaxyx()
-    dh, dw = 9, 55
-    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
-    win.keypad(True)
-    curses.curs_set(1)
-    keyname = ''
-
-    while True:
-        win.erase()
-        draw_box(win, 0, 0, dh, dw, 'Generate ED25519 Key', curses.color_pair(3))
-        safe_addstr(win, 2, 3, 'Key name:')
-        safe_addstr(win, 3, 3, f'  {keyname}█')
-        safe_addstr(win, 6, 2, 'Enter:generate  Esc:cancel')
-        win.refresh()
-        key = win.getch()
-
-        if key == 27:
-            curses.curs_set(0); return
-        elif key == 10:
-            if not keyname.strip(): continue
-            clean = Path(keyname).stem
-            clean = re.sub(r'\.(key|pub)$', '', clean)
-            if not clean: continue
-            private = CONF_DIR / f'{clean}.key'
-            public = CONF_DIR / f'{clean}.pub'
-            if private.exists(): continue
-            subprocess.run(
-                ['ssh-keygen', '-t', 'ed25519', '-f', str(private),
-                 '-C', f'wsm-{clean}', '-N', ''],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            subprocess.run(['mv', f'{private}.pub', str(public)],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            win.erase()
-            draw_box(win, 0, 0, dh, dw, 'Key Generated', curses.color_pair(3))
-            safe_addstr(win, 2, 3, f'Private: {private}', curses.color_pair(1))
-            safe_addstr(win, 3, 3, f'Public:  {public}', curses.color_pair(1))
-            safe_addstr(win, 5, 2, '')
-            safe_addstr(win, 6, dw - 15, 'Press any key')
-            win.refresh()
-            curses.curs_set(0); win.getch(); return
-        elif key in (curses.KEY_BACKSPACE, 127, 8):
-            keyname = keyname[:-1]
-        elif 32 <= key <= 126:
-            keyname += chr(key)
-
-
-def desktop_snippet(stdscr, project):
-    max_h, max_w = stdscr.getmaxyx()
-    lines = [
-        f'Actions={project};', '',
-        f'[Desktop Action {project}]',
-        f'Name=Open Remote: {project}',
-        f'Exec=bash -c \'source $HOME/.wsm && wsm run {project}\'',
-        f'Identifier={project}',
-    ]
     dh = min(len(lines) + 5, max_h - 2)
     dw = min(max(len(max(lines, key=len)) + 4, 50), max_w - 2)
     win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
@@ -183,66 +119,7 @@ def desktop_snippet(stdscr, project):
     win.refresh(); win.getch()
 
 
-def help_dialog(stdscr):
-    max_h, max_w = stdscr.getmaxyx()
-    rows = [
-        ('F3', True,  'm', 'Mount',       'F6', True,  'u', 'Unmount'),
-        ('F4', True,  'r', 'Run',         'F7', True,  'c', 'New config'),
-        ('F5', True,  's', 'Connect',     'F8', True,  'e', 'Edit config'),
-        ('Del',True,  'x', 'Delete',      'F9', True,  'd', 'Desktop'),
-        ('F1', False, '',  'Help',        'F10',True,  'q', 'Quit'),
-    ]
-    lines = [
-        '',
-        '  Tab / ←→  Switch panels',
-        '  ↑↓ / j k  Navigate',
-        '  Enter     Execute',
-        '  Esc       Back to left panel',
-        '',
-    ]
-    for k1, s1, c1, a1, k2, s2, c2, a2 in rows:
-        if s1:
-            left = f'  {k1:<4}  / {c1}  {a1:<10}'
-        else:
-            left = f'  {k1:<4}        {a1:<10}'
-        if s2:
-            right = f'{k2:<4}  / {c2}  {a2:<10}'
-        else:
-            right = f'{k2:<4}        {a2:<10}'
-        lines.append(f'{left}  {right}')
-    lines += [
-        '',
-        f'Configs: {CONF_DIR}',
-        f'Min size: {MIN_W}x{MIN_H}',
-    ]
-    dh = min(len(lines) + 4, max_h - 2)
-    content_w = max((len(ln) for ln in lines), default=40) + 6
-    dw = min(max(content_w, 58), max_w - 2)
-    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
-    win.erase()
-    draw_box(win, 0, 0, dh, dw, 'Help', curses.color_pair(3))
-    for i, line in enumerate(lines):
-        attr = curses.A_BOLD if i == 0 else 0
-        safe_addstr(win, 1 + i, 3, line, attr)
-    safe_addstr(win, dh - 1, dw - 15, 'Press any key')
-    win.refresh(); win.getch()
-
-
-def too_small_dialog(stdscr):
-    max_h, max_w = stdscr.getmaxyx()
-    msg = f'Terminal too small ({max_w}x{max_h}). Need {MIN_W}x{MIN_H}+.'
-    lines = ['Terminal Too Small', '', msg, '', 'Press q to quit, any key to retry.']
-    dh, dw = len(lines) + 3, max(60, max_w - 2)
-    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
-    win.erase()
-    draw_box(win, 0, 0, dh, dw, 'Error', curses.color_pair(4))
-    for i, line in enumerate(lines):
-        safe_addstr(win, 1 + i, 2, line, curses.A_BOLD if i == 0 else 0)
-    win.refresh()
-    return win.getch()
-
-
-# ── Main TUI ────────────────────────────────────────────────────────
+# ── Main TUI loop ───────────────────────────────────────────────────
 
 def main(stdscr):
     curses.curs_set(0)
@@ -274,7 +151,7 @@ def main(stdscr):
         h, w = stdscr.getmaxyx()
 
         if w < MIN_W or h < MIN_H:
-            key = too_small_dialog(stdscr)
+            key = too_small_dialog(stdscr, MIN_W, MIN_H)
             if key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й'):
                 break
             stdscr.erase(); stdscr.refresh()
@@ -328,9 +205,7 @@ def main(stdscr):
 
                 prefix = '▶' if sel else ' '
                 name = proj['name'][:inner_w - 6]
-                # Fixed layout: prefix + name (padded) + space + icon at right edge
-                pad = inner_w - 5 - len(name)
-                if pad < 1: pad = 1
+                pad = max(1, inner_w - 5 - len(name))
                 safe_addstr(stdscr, y, inner_x + 1,
                             f'{prefix} {name}{" " * pad}{icon}', line_attr)
 
@@ -411,23 +286,25 @@ def main(stdscr):
 
         # ── Input ──
         key = stdscr.get_wch()
-        # Normalize: string chars → ord, special keys stay as int
         if isinstance(key, str):
             key = ord(key)
 
         if key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й') or key == curses.KEY_F10:
             break
         if key == curses.KEY_F1:
-            help_dialog(stdscr); needs_refresh = True; continue
+            help_dialog(stdscr, CONF_DIR, MIN_W, MIN_H); needs_refresh = True; continue
+
+        # Panel switching
         if focus == 'left' and key in (curses.KEY_RIGHT, ord('\t')):
             focus = 'right'; continue
         if focus == 'right' and key in (curses.KEY_LEFT, ord('\t'), 27):
             focus = 'left'; continue
 
+        # Global hotkeys
         needs_refresh |= _handle_key(key, projects, pidx, aidx, focus, stdscr)
 
         # Navigation
-        num_ra = 8  # right-panel action count (3 context + 5 tools)
+        num_ra = 8
         if focus == 'left':
             if key in (curses.KEY_DOWN,) or match_key(key, 'j', 'о'):
                 pidx = min(pidx + 1, len(projects) - 1) if projects else 0
@@ -446,6 +323,8 @@ def main(stdscr):
     curses.curs_set(1)
 
 
+# ── Action dispatchers ──────────────────────────────────────────────
+
 def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
     """Handle F-key and single-key shortcuts."""
     fkeys = {
@@ -455,7 +334,6 @@ def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
         curses.KEY_DC: 'delete',
     }
     singles = {}
-    # Single-key shortcuts with Russian layout fallbacks
     for ch, act in [
         ('mMьЬ', 'mount'), ('rRкК', 'run'), ('sSыЫ', 'connect'),
         ('uUгГ', 'unmount'), ('cCсС', 'new'), ('eEуУ', 'edit'),
@@ -470,58 +348,39 @@ def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
 
 
 def _do_global_action(action, projects, pidx, stdscr):
-    """F-key or single-key action."""
     if not projects:
         return False
     project = projects[pidx]['name']
 
     if action == 'new':
-        data = create_config_dialog(stdscr)
+        data = config_form(stdscr)
         if data:
-            # Validate
             alias = data['remote_path'].split(':')[0]
             ok, err = check_net(alias)
             if not ok:
-                _show_msg(stdscr, f'Network check FAILED: {err}')
+                show_msg(stdscr, f'Network check FAILED: {err}')
                 return True
-            conf_file = CONF_DIR / f'{data["alias"]}.conf'
-            CONF_DIR.mkdir(parents=True, exist_ok=True)
-            with open(conf_file, 'w') as f:
-                f.write(f'remote_path = "{data["remote_path"]}"\n')
-                f.write(f'local_mount = "{data["local_mount"]}"\n')
-                f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+            save_config(data['alias'], data['remote_path'],
+                       data['local_mount'], data['editor_cmd'])
         stdscr.erase(); stdscr.refresh(); return True
     elif action == 'keys':
         generate_key_dialog(stdscr)
         stdscr.erase(); stdscr.refresh(); return True
     elif action == 'desktop':
-        desktop_snippet(stdscr, project)
+        desktop_dialog(stdscr, project)
         stdscr.erase(); stdscr.refresh(); return True
     elif action == 'delete':
         return _delete_config(projects, pidx, stdscr)
     elif action == 'edit':
         return _edit_config(projects, pidx, stdscr)
     else:
-        # mount / run / connect / unmount
         r = spinner_modal(stdscr, action, project)
         if r[2] != 0 and r[1]:
-            _show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
+            show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
         return True
 
 
-def _show_msg(stdscr, msg):
-    h, w = stdscr.getmaxyx()
-    dh, dw = 6, min(len(msg) + 6, w - 2)
-    win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
-    win.erase()
-    draw_box(win, 0, 0, dh, dw, 'Message', curses.color_pair(6))
-    safe_addstr(win, 2, 3, msg[:dw - 6])
-    safe_addstr(win, dh - 1, dw - 15, 'Press any key')
-    win.refresh(); win.getch()
-
-
 def _do_action(aidx, projects, pidx, stdscr):
-    """Right-panel action via Enter."""
     project = projects[pidx]['name']
     mounted = projects[pidx]['mounted']
 
@@ -534,23 +393,19 @@ def _do_action(aidx, projects, pidx, stdscr):
         if aidx in context:
             r = spinner_modal(stdscr, context[aidx], project)
             if r[2] != 0 and r[1]:
-                _show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
+                show_msg(stdscr, r[1].strip().split('\n')[-1][:60])
         return True
 
     if aidx == 3:
-        data = create_config_dialog(stdscr)
+        data = config_form(stdscr)
         if data:
             alias = data['remote_path'].split(':')[0]
             ok, err = check_net(alias)
             if not ok:
-                _show_msg(stdscr, f'Network check FAILED: {err}')
+                show_msg(stdscr, f'Network check FAILED: {err}')
                 return True
-            conf_file = CONF_DIR / f'{data["alias"]}.conf'
-            CONF_DIR.mkdir(parents=True, exist_ok=True)
-            with open(conf_file, 'w') as f:
-                f.write(f'remote_path = "{data["remote_path"]}"\n')
-                f.write(f'local_mount = "{data["local_mount"]}"\n')
-                f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+            save_config(data['alias'], data['remote_path'],
+                       data['local_mount'], data['editor_cmd'])
         stdscr.erase(); stdscr.refresh(); return True
     elif aidx == 4:
         return _edit_config(projects, pidx, stdscr)
@@ -558,7 +413,7 @@ def _do_action(aidx, projects, pidx, stdscr):
         generate_key_dialog(stdscr)
         stdscr.erase(); stdscr.refresh(); return True
     elif aidx == 6:
-        desktop_snippet(stdscr, project)
+        desktop_dialog(stdscr, project)
         stdscr.erase(); stdscr.refresh(); return True
     elif aidx == 7:
         return _delete_config(projects, pidx, stdscr)
@@ -566,7 +421,6 @@ def _do_action(aidx, projects, pidx, stdscr):
 
 
 def _edit_config(projects, pidx, stdscr):
-    """Edit selected project config — pre-fills fields from existing config."""
     if not projects:
         return False
     proj = projects[pidx]
@@ -576,77 +430,41 @@ def _edit_config(projects, pidx, stdscr):
         'local_mount': proj['local_mount'] or '',
         'editor_cmd': proj['editor_cmd'] or 'zed',
     }
-    data = create_config_dialog(stdscr, initial)
+    data = config_form(stdscr, initial)
     if data:
         alias = data['remote_path'].split(':')[0]
         ok, err = check_net(alias)
         if not ok:
-            _show_msg(stdscr, f'Network check FAILED: {err}')
+            show_msg(stdscr, f'Network check FAILED: {err}')
             stdscr.erase(); stdscr.refresh()
             return True
-        old_conf = Path(proj['conf'])
-        new_conf = CONF_DIR / f'{data["alias"]}.conf'
-        if str(old_conf) != str(new_conf) and old_conf.exists():
-            old_conf.unlink()
-        CONF_DIR.mkdir(parents=True, exist_ok=True)
-        with open(new_conf, 'w') as f:
-            f.write(f'remote_path = "{data["remote_path"]}"\n')
-            f.write(f'local_mount = "{data["local_mount"]}"\n')
-            f.write(f'editor_cmd = "{data["editor_cmd"]}"\n')
+        save_config(data['alias'], data['remote_path'],
+                   data['local_mount'], data['editor_cmd'],
+                   old_conf=proj['conf'])
     stdscr.erase(); stdscr.refresh()
     return True
 
 
 def _delete_config(projects, pidx, stdscr):
-    """Delete selected project config with confirmation."""
     if not projects:
         return False
     name = projects[pidx]['name']
-    if projects[pidx]['mounted']:
-        _show_msg(stdscr, f'Unmount {name} first before deleting.')
-        return True
+    local_mount = projects[pidx]['local_mount']
 
-    max_h, max_w = stdscr.getmaxyx()
-    dh, dw = 6, 55
-    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
-    win.keypad(True)
+    ok, reason = can_delete_config(projects[pidx]['conf'], local_mount)
+    if not ok:
+        show_msg(stdscr, reason)
+        return True
 
     lines = [
         f'Delete config "{name}"?',
         f'File: {CONF_DIR / (name + ".conf")}',
     ]
-    choice = 1  # 0=Yes, 1=No
-
-    while True:
-        win.erase()
-        draw_box(win, 0, 0, dh, dw, 'Confirm Delete', curses.color_pair(10))
-        for i, line in enumerate(lines):
-            safe_addstr(win, 1 + i, 3, line)
-        for i, lbl in enumerate(['  Yes  ', '  No   ']):
-            attr = curses.color_pair(7) | curses.A_BOLD if i == choice else 0
-            safe_addstr(win, 3, 10 + i * 14, lbl, attr)
-        win.refresh()
-
-        key = win.get_wch()
-        if isinstance(key, str):
-            key = ord(key)
-        if key in (curses.KEY_LEFT,) or match_key(key, 'h', 'H', 'р', 'Р'):
-            choice = 0
-        elif key in (curses.KEY_RIGHT,) or match_key(key, 'l', 'L', 'д', 'Д'):
-            choice = 1
-        elif key == 10:
-            break
-        elif key in (27,) or match_key(key, 'q', 'Q', 'й', 'Й', 'n', 'N', 'т', 'Т'):
-            choice = 1; break
-        elif match_key(key, 'y', 'Y', 'н', 'Н'):
-            choice = 0; break
-
-    if choice == 0:
-        conf_file = projects[pidx]['conf']
+    if confirm_dialog(stdscr, 'Confirm Delete', lines):
         try:
-            Path(conf_file).unlink()
-        except Exception as e:
-            _show_msg(stdscr, f'Delete failed: {e}')
+            delete_config_file(projects[pidx]['conf'], local_mount)
+        except (ValueError, OSError) as e:
+            show_msg(stdscr, f'Delete failed: {e}')
     return True
 
 

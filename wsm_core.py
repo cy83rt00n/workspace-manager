@@ -107,3 +107,80 @@ def match_key(key, *chars):
         except (ValueError, OverflowError):
             pass
     return False
+
+
+def validate_config(alias, remote_path, local_mount):
+    """Validate config fields.  Returns (ok: bool, error: str)."""
+    alias = ''.join(c for c in alias if c.isalnum() or c in '_-')
+    if not alias:
+        return False, 'Alias required (a-z, 0-9, _, -)'
+    if remote_path.count(':') != 1 or not remote_path.split(':')[0]:
+        return False, 'Remote must be alias:/path'
+    if not local_mount.startswith('/'):
+        return False, 'Local mount must be absolute path'
+    return True, ''
+
+
+def save_config(alias, remote_path, local_mount, editor_cmd='zed',
+                old_conf=None):
+    """Write project config file.  If old_conf given and alias changed, delete old."""
+    CONF_DIR.mkdir(parents=True, exist_ok=True)
+    new_conf = CONF_DIR / f'{alias}.conf'
+    if old_conf and str(old_conf) != str(new_conf) and Path(old_conf).exists():
+        Path(old_conf).unlink()
+    with open(new_conf, 'w') as f:
+        f.write(f'remote_path = "{remote_path}"\n')
+        f.write(f'local_mount = "{local_mount}"\n')
+        f.write(f'editor_cmd = "{editor_cmd}"\n')
+    return new_conf
+
+
+def can_delete_config(conf_path, local_mount):
+    """Check if config can be safely deleted.  Returns (ok: bool, reason: str)."""
+    if not Path(conf_path).exists():
+        return False, f'Config not found: {conf_path}'
+    if local_mount and is_mounted(local_mount):
+        return False, 'Project is mounted. Unmount first.'
+    return True, ''
+
+
+def delete_config_file(conf_path, local_mount):
+    """Delete config file.  Raises ValueError if not safe."""
+    ok, reason = can_delete_config(conf_path, local_mount)
+    if not ok:
+        raise ValueError(reason)
+    Path(conf_path).unlink()
+
+
+def generate_keypair(name):
+    """Generate ED25519 SSH keypair.  Returns (private_path, public_path)."""
+    import subprocess
+    clean = Path(name).stem
+    clean = re.sub(r'\.(key|pub)$', '', clean)
+    if not clean:
+        raise ValueError('Invalid key name')
+    private = CONF_DIR / f'{clean}.key'
+    public = CONF_DIR / f'{clean}.pub'
+    if private.exists():
+        raise FileExistsError(f'{private} already exists')
+    subprocess.run(
+        ['ssh-keygen', '-t', 'ed25519', '-f', str(private),
+         '-C', f'wsm-{clean}', '-N', ''],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ['mv', f'{private}.pub', str(public)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return str(private), str(public)
+
+
+def desktop_snippet_text(project):
+    """Generate XDG Desktop Action snippet for a project."""
+    return [
+        f'Actions={project};', '',
+        f'[Desktop Action {project}]',
+        f'Name=Open Remote: {project}',
+        f'Exec=bash -c \'source $HOME/.wsm && wsm run {project}\'',
+        f'Identifier={project}',
+    ]

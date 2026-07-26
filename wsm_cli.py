@@ -9,7 +9,8 @@ import sys
 import time
 from pathlib import Path
 
-from wsm_core import CONF_DIR, VERSION, parse_toml, is_mounted, check_net
+from wsm_core import (CONF_DIR, VERSION, parse_toml, is_mounted, check_net,
+                       delete_config_file)
 
 SPINNER = itertools.cycle('⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏')
 IS_TTY = sys.stdout.isatty()
@@ -146,9 +147,10 @@ def list_projects():
 
 def cmd_delete(project, conf, local_mount, force=False):
     """Delete project config with confirmation and safety checks."""
-    if local_mount and is_mounted(local_mount):
-        print(f'Error: {project} is currently mounted. Unmount first.',
-              file=sys.stderr)
+    from wsm_core import can_delete_config
+    ok, reason = can_delete_config(conf, local_mount)
+    if not ok:
+        print(f'Error: {reason}', file=sys.stderr)
         sys.exit(1)
 
     if not force:
@@ -157,7 +159,7 @@ def cmd_delete(project, conf, local_mount, force=False):
             print('Cancelled.')
             sys.exit(0)
 
-    conf.unlink()
+    delete_config_file(conf, local_mount)
     print(f'Config "{project}" deleted.')
 
 
