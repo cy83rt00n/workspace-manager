@@ -171,7 +171,7 @@ def render_form(stdscr, title, fields, initial=None):
         elif key == 10:
             result = {}
             for (_, fkey), val in zip(fields, values):
-                if not val and fkey in ('alias', 'keyname'):
+                if not val and fkey == 'keyname':
                     continue
                 result[fkey] = val
             curses.curs_set(0)
