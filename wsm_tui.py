@@ -173,8 +173,8 @@ def help_dialog(stdscr):
         '',
     ]
     for k1, s1, c1, a1, k2, s2, c2, a2 in rows:
-        sep1 = f' / {c1}  ' if s1 else '       '
-        sep2 = f' / {c2}  ' if s2 else '       '
+        sep1 = f' / {c1}  ' if s1 else '      '
+        sep2 = f' / {c2}  ' if s2 else '      '
         left = f'  {k1:<4}{sep1}{a1:<10}'
         right = f'{k2:<4}{sep2}{a2:<10}'
         lines.append(f'{left}  {right}')
