@@ -24,7 +24,7 @@ remove_hook() {
             echo "Removing WSM hook from $rc_file..."
             sed -i '/# Workspace Manager/d' "$rc_file"
             sed -i '/export PATH="\$HOME\/.local\/bin:\$PATH"/d' "$rc_file"
-            sed -i '/source.*\.wsm-complete/d' "$rc_file"
+            sed -i '/\.wsm/d' "$rc_file"
         fi
     fi
 }
