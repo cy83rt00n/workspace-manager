@@ -18,5 +18,6 @@
 ## Changed
 
 - **`README.md`** — Rewritten for python-curses branch: Python-only docs, CLI+TUI commands, hotkeys table, python-curses-specific install/uninstall URLs
+- **`install.sh`** — Copies `demo.config.toml` → `~/.config/workspace/demo.conf` during install so TUI has a default project immediately
 - **`install.sh`** — Added `mkdir -p` before deps check, clone with `--branch python-curses`, updated messages
 - **`install.sh`**, **`uninstall.sh`** — Hooks wrapped in marker comments (`>>> WSM BEGIN >>>` / `<<< WSM END <<<`), uninstall uses sed range for atomic removal

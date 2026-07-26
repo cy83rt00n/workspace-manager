@@ -159,6 +159,14 @@ case "$choice" in
         ;;
 esac
 
+# ── Demo config ──────────────────────────────────────────────────
+
+mkdir -p "$HOME/.config/workspace"
+if [ -f "$TARGET_REPO_DIR/demo.config.toml" ]; then
+    cp "$TARGET_REPO_DIR/demo.config.toml" "$HOME/.config/workspace/demo.conf"
+    echo "Demo config copied to ~/.config/workspace/"
+fi
+
 # ── Shell PATH hook ─────────────────────────────────────────────
 
 cp "$TARGET_REPO_DIR/.wsm-complete" "$HOME/.wsm-complete"
