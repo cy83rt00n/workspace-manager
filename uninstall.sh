@@ -24,6 +24,13 @@ if [ -f "$HOME/.wsm" ] || [ -f "$HOME/.wsm-manager" ]; then
     DETECTED="cli"
 elif [ -L "${BIN_DIR}/wsm" ] || [ -f "$HOME/.wsm-complete" ]; then
     DETECTED="python-curses"
+elif grep -q ">>> WSM BEGIN >>>" "$HOME/.bashrc" 2>/dev/null; then
+    DETECTED="hook-only (incomplete)"
+fi
+
+if [ -z "$DETECTED" ]; then
+    echo "Nothing to uninstall."
+    exit 0
 fi
 
 echo "Detected: ${DETECTED:-unknown}"
@@ -33,8 +40,8 @@ echo ""
 
 remove_hook() {
     local rc_file="$1"
-    if [ -f "$rc_file" ]; then
-        sed -i '/>>> WSM BEGIN >>>/,/<<< WSM END <<</d' "$rc_file" 2>/dev/null || true
+    if [ -f "$rc_file" ] && grep -q ">>> WSM BEGIN >>>" "$rc_file" 2>/dev/null; then
+        sed -i '/>>> WSM BEGIN >>>/,/<<< WSM END <<</d' "$rc_file"
         echo "  Cleaned $rc_file"
     fi
 }
