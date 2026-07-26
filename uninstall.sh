@@ -24,6 +24,7 @@ remove_hook() {
             echo "Removing WSM hook from $rc_file..."
             sed -i '/# Workspace Manager/d' "$rc_file"
             sed -i '/export PATH="\$HOME\/.local\/bin:\$PATH"/d' "$rc_file"
+            sed -i '/source.*\.wsm-complete/d' "$rc_file"
         fi
     fi
 }
@@ -31,13 +32,18 @@ remove_hook() {
 remove_hook "$HOME/.bashrc"
 remove_hook "$HOME/.zshrc"
 
-# 2. Remove symlinks
+# 2. Remove symlinks and autocomplete
 for bin in wsm wsm-tui; do
     if [ -L "${BIN_DIR}/${bin}" ]; then
         echo "Removing ${BIN_DIR}/${bin} symlink..."
         rm -f "${BIN_DIR}/${bin}"
     fi
 done
+
+if [ -f "$HOME/.wsm-complete" ]; then
+    echo "Removing $HOME/.wsm-complete..."
+    rm -f "$HOME/.wsm-complete"
+fi
 
 # 3. Show dependency removal hint
 DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"

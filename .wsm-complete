@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+# Универсальный движок автодополнения для python-curses (Bash & Zsh-совместимый)
+
+_wsm_py_complete_logic() {
+    local conf_dir="$HOME/.config/workspace"
+    if [ -d "$conf_dir" ]; then
+        find "$conf_dir" -maxdepth 1 -name "*.conf" -exec basename {} .conf \;
+    fi
+}
+
+if [ -n "${BASH_VERSION:-}" ]; then
+    _wsm_bash_autocomplete() {
+        local cur="${COMP_WORDS[COMP_CWORD]}"
+        if [ "$COMP_CWORD" -eq 1 ]; then
+            COMPREPLY=($(compgen -W "mount unmount run connect delete m u r c del rm help --list" -- "$cur"))
+        elif [ "$COMP_CWORD" -eq 2 ]; then
+            COMPREPLY=($(compgen -W "$(_wsm_py_complete_logic)" -- "$cur"))
+        fi
+    }
+    complete -F _wsm_bash_autocomplete wsm
+    complete -F _wsm_bash_autocomplete wsm-tui
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    _wsm_zsh_autocomplete() {
+        local -a commands projects
+        commands=(mount m unmount u run r connect c delete del rm help --list)
+        projects=(${(f)"$(_wsm_py_complete_logic)"})
+        if (( CURRENT == 2 )); then
+            _describe -t commands 'wsm commands' commands
+        elif (( CURRENT == 3 )); then
+            _describe -t projects 'available projects' projects
+        fi
+    }
+    compdef _wsm_zsh_autocomplete wsm
+    compdef _wsm_zsh_autocomplete wsm-tui
+fi
