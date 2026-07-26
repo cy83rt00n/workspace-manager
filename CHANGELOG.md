@@ -3,11 +3,12 @@
 Commits since `origin/main`:
 
 ```
+46a688b chore: add CHANGELOG.md, update AGENT.md and TASKS.md
 4b8ad13 fix: resolve bugs found during code audit
 8685803 chore: add .gitignore, AGENT.md, TASKS.md
 ```
 
-## Changes (7 files, +171/−80)
+## Changes (8 files, +213/−84)
 
 ### Bugfixes
 
@@ -16,12 +17,13 @@ Commits since `origin/main`:
 
 ### Project structure
 
-- **`demo.conf` → `demo.config.toml`** — Renamed demo config to `.toml` extension, no key duplication
+- **`demo.conf` → `demo.config.toml`** — Renamed demo config to `.toml` extension
 - **`.gitignore`** — Added (Python cache, swap files, IDE dirs, AGENT.md, TASKS.md)
-- **`AGENT.md`** — Added (agent operational rules)
-- **`TASKS.md`** — Added (central task file)
+- **`AGENT.md`** — Added and updated agent operational rules
+- **`TASKS.md`** — Added task tracking file, all 6 tasks completed
+- **`CHANGELOG.md`** — Added project changelog
 - **`__pycache__/`** — Removed orphan Python bytecode
 
 ### Documentation
 
-- **`README.md`** — Rewritten from scratch: added `connect` command docs, `connect vs run` comparison table, cleaner table formatting, reference to `demo.config.toml` template
+- **`README.md`** — Rewritten: added `connect` command docs, `connect vs run` table, cleaner formatting, reference to `demo.config.toml`
