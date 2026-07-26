@@ -29,7 +29,7 @@ wsm() {
     local cmd="${1:-}"
     local project="${2:-}"
     local conf_dir="$HOME/.config/workspace"
-    local conf="${conf_dir}/${project}.conf"
+    local conf="${conf_dir}/${project}.config.toml"
 
     if [[ -z "$cmd" || "$cmd" == "help" || "$cmd" == "-h" ]]; then
         echo "Workspace Manager v2.0.0"
@@ -150,7 +150,7 @@ if [ -f "$HOME/.wsm-manager" ]; then source "$HOME/.wsm-manager"; fi
 _wsm_complete_logic() {
     local conf_dir="$HOME/.config/workspace"
     if [ -d "$conf_dir" ]; then
-        echo "$(find "$conf_dir" -maxdepth 1 -name "*.conf" -exec basename {} .conf \;)"
+        echo "$(find "$conf_dir" -maxdepth 1 -name "*.config.toml" -exec basename {} .config.toml \;)"
     fi
 }
 

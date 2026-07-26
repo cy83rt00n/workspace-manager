@@ -10,7 +10,7 @@ wsm-manager() {
         echo "========================================="
         echo "       WSM-MANAGER: WORKSPACE MENU       "
         echo "========================================="
-        echo "1) Create / Update Project Config (.conf)"
+        echo "1) Create / Update Project Config (.config.toml)"
         echo "2) Generate XDG Desktop Action Syntax"
         echo "3) Generate Modern SSH Keypair (ED25519)"
         echo "4) Exit"
@@ -32,7 +32,7 @@ wsm-manager() {
         read -p "Enter IDE Command (zed, code, pstorm) [zed]: " editor
         editor="${editor:-zed}"
 
-        local target_file="${CONFIG_DIR}/${alias}.conf"
+        local target_file="${CONFIG_DIR}/${alias}.config.toml"
 
         cat << EOF > "$target_file"
 remote_path = "$remote"
@@ -45,10 +45,10 @@ EOF
     generate_desktop() {
         echo "--- XDG Desktop Actions Generator ---"
         read -p "Enter project alias to export: " alias
-        local target_file="${CONFIG_DIR}/${alias}.conf"
+        local target_file="${CONFIG_DIR}/${alias}.config.toml"
 
         if [[ ! -f "$target_file" ]]; then
-            echo "Error: Config ${alias}.conf does not exist." && return 1
+            echo "Error: Config ${alias}.config.toml does not exist." && return 1
         fi
 
         echo ""
