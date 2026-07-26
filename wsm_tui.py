@@ -89,7 +89,7 @@ def create_config_dialog(stdscr, initial=None):
 
 def generate_key_dialog(stdscr):
     max_h, max_w = stdscr.getmaxyx()
-    dh, dw = 8, 55
+    dh, dw = 9, 55
     win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
     win.keypad(True)
     curses.curs_set(1)
@@ -125,7 +125,8 @@ def generate_key_dialog(stdscr):
             draw_box(win, 0, 0, dh, dw, 'Key Generated', curses.color_pair(3))
             safe_addstr(win, 2, 3, f'Private: {private}', curses.color_pair(1))
             safe_addstr(win, 3, 3, f'Public:  {public}', curses.color_pair(1))
-            safe_addstr(win, 5, 2, 'Press any key')
+            safe_addstr(win, 5, 2, '')
+            safe_addstr(win, 6, dw - 15, 'Press any key')
             win.refresh()
             curses.curs_set(0); win.getch(); return
         elif key in (curses.KEY_BACKSPACE, 127, 8):
@@ -143,14 +144,14 @@ def desktop_snippet(stdscr, project):
         f'Exec=bash -c \'source $HOME/.wsm && wsm run {project}\'',
         f'Identifier={project}',
     ]
-    dh = min(len(lines) + 4, max_h - 2)
+    dh = min(len(lines) + 5, max_h - 2)
     dw = min(max(len(max(lines, key=len)) + 4, 50), max_w - 2)
     win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
     win.erase()
     draw_box(win, 0, 0, dh, dw, 'Desktop Action', curses.color_pair(3))
     for i, line in enumerate(lines):
         safe_addstr(win, 2 + i, 3, line)
-    safe_addstr(win, dh - 2, 2, 'Press any key')
+    safe_addstr(win, dh - 1, dw - 15, 'Press any key')
     win.refresh(); win.getch()
 
 
@@ -164,7 +165,6 @@ def help_dialog(stdscr):
         ('F1', False, '',  'Help',        'F10',True,  'q', 'Quit'),
     ]
     lines = [
-        'WSM Manager  —  MC Style',
         '',
         '  Tab / ←→  Switch panels',
         '  ↑↓ / j k  Navigate',
@@ -173,17 +173,21 @@ def help_dialog(stdscr):
         '',
     ]
     for k1, s1, c1, a1, k2, s2, c2, a2 in rows:
-        se1 = f' / {c1}  ' if s1 else '      '
-        se2 = f' / {c2}  ' if s2 else '      '
-        left = f'  {k1:<4}{se1}{a1:<10}'
-        right = f'{k2:<4}{se2}{a2:<10}'
+        if s1:
+            left = f'  {k1:<4}  / {c1}  {a1:<10}'
+        else:
+            left = f'  {k1:<4}        {a1:<10}'
+        if s2:
+            right = f'{k2:<4}  / {c2}  {a2:<10}'
+        else:
+            right = f'{k2:<4}        {a2:<10}'
         lines.append(f'{left}  {right}')
     lines += [
         '',
         f'Configs: {CONF_DIR}',
         f'Min size: {MIN_W}x{MIN_H}',
     ]
-    dh = min(len(lines) + 3, max_h - 2)
+    dh = min(len(lines) + 4, max_h - 2)
     content_w = max((len(ln) for ln in lines), default=40) + 6
     dw = min(max(content_w, 58), max_w - 2)
     win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
@@ -192,7 +196,7 @@ def help_dialog(stdscr):
     for i, line in enumerate(lines):
         attr = curses.A_BOLD if i == 0 else 0
         safe_addstr(win, 1 + i, 3, line, attr)
-    safe_addstr(win, dh - 2, 2, 'Press any key')
+    safe_addstr(win, dh - 1, dw - 15, 'Press any key')
     win.refresh(); win.getch()
 
 
@@ -479,12 +483,12 @@ def _do_global_action(action, projects, pidx, stdscr):
 
 def _show_msg(stdscr, msg):
     h, w = stdscr.getmaxyx()
-    dh, dw = 5, min(len(msg) + 6, w - 2)
+    dh, dw = 6, min(len(msg) + 6, w - 2)
     win = curses.newwin(dh, dw, (h - dh) // 2, (w - dw) // 2)
     win.erase()
     draw_box(win, 0, 0, dh, dw, 'Message', curses.color_pair(6))
     safe_addstr(win, 2, 3, msg[:dw - 6])
-    safe_addstr(win, dh - 2, 2, 'Press any key')
+    safe_addstr(win, dh - 1, dw - 15, 'Press any key')
     win.refresh(); win.getch()
 
 
