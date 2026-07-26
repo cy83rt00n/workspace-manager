@@ -449,10 +449,10 @@ def main(stdscr):
                 safe_addstr(stdscr, info_y, rx, f'Status: {status}'[:rw],
                             curses.color_pair(1) if sel['mounted'] else curses.color_pair(2))
 
-            tools_y = ry + body_h - 9
+            tools_y = ry + body_h - 11
             if tools_y > info_y + 2:
                 safe_addstr(stdscr, tools_y, rx, '─' * min(rw, right_w - 4), curses.color_pair(5))
-                tools = ['New config', 'SSH keys', 'Desktop entry']
+                tools = ['New config', 'SSH keys', 'Desktop entry', 'Delete config']
                 for i, tool in enumerate(tools):
                     y = tools_y + 1 + i * 2
                     if y >= body_y + body_h - 2: break
@@ -491,7 +491,7 @@ def main(stdscr):
         needs_refresh |= _handle_key(key, projects, pidx, aidx, focus, stdscr)
 
         # Navigation
-        num_ra = 6  # right-panel action count
+        num_ra = 7  # right-panel action count (3 context + 4 tools)
         if focus == 'left':
             if key in (curses.KEY_DOWN, ord('j')):
                 pidx = min(pidx + 1, len(projects) - 1) if projects else 0
@@ -515,11 +515,13 @@ def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
     fkeys = {
         curses.KEY_F3: 'mount', curses.KEY_F4: 'run', curses.KEY_F5: 'connect',
         curses.KEY_F6: 'unmount', curses.KEY_F7: 'new', curses.KEY_F8: 'keys',
-        curses.KEY_F9: 'desktop',
+        curses.KEY_F9: 'desktop', curses.KEY_F10: 'quit',
+        curses.KEY_DC: 'delete',  # Delete key
     }
     singles = {
         ord('m'): 'mount', ord('r'): 'run', ord('s'): 'connect',
         ord('u'): 'unmount', ord('c'): 'new', ord('k'): 'keys', ord('d'): 'desktop',
+        ord('x'): 'delete',
     }
     action = fkeys.get(key) or singles.get(key)
     if action:
@@ -555,6 +557,8 @@ def _do_global_action(action, projects, pidx, stdscr):
     elif action == 'desktop':
         desktop_snippet(stdscr, project)
         stdscr.erase(); stdscr.refresh(); return True
+    elif action == 'delete':
+        return _delete_config(projects, pidx, stdscr)
     else:
         # mount / run / connect / unmount
         r = wsm_cli(action, project)
@@ -612,8 +616,57 @@ def _do_action(aidx, projects, pidx, stdscr):
     elif aidx == 5:
         desktop_snippet(stdscr, project)
         stdscr.erase(); stdscr.refresh(); return True
+    elif aidx == 6:
+        return _delete_config(projects, pidx, stdscr)
     return False
 
 
-if __name__ == '__main__':
-    curses.wrapper(main)
+def _delete_config(projects, pidx, stdscr):
+    """Delete selected project config with confirmation."""
+    if not projects:
+        return False
+    name = projects[pidx]['name']
+    if projects[pidx]['mounted']:
+        _show_msg(stdscr, f'Unmount {name} first before deleting.')
+        return True
+
+    max_h, max_w = stdscr.getmaxyx()
+    dh, dw = 6, 55
+    win = curses.newwin(dh, dw, (max_h - dh) // 2, (max_w - dw) // 2)
+    win.keypad(True)
+
+    lines = [
+        f'Delete config "{name}"?',
+        f'File: {CONF_DIR / (name + ".conf")}',
+    ]
+    choice = 1  # 0=Yes, 1=No
+
+    while True:
+        win.erase()
+        draw_box(win, 0, 0, dh, dw, 'Confirm Delete', curses.color_pair(10))
+        for i, line in enumerate(lines):
+            safe_addstr(win, 1 + i, 3, line)
+        for i, lbl in enumerate(['  Yes  ', '  No   ']):
+            attr = curses.color_pair(7) | curses.A_BOLD if i == choice else 0
+            safe_addstr(win, 3, 10 + i * 14, lbl, attr)
+        win.refresh()
+
+        key = win.getch()
+        if key in (curses.KEY_LEFT, ord('h')):
+            choice = 0
+        elif key in (curses.KEY_RIGHT, ord('l')):
+            choice = 1
+        elif key == 10:
+            break
+        elif key in (27, ord('q'), ord('n')):
+            choice = 1; break
+        elif key == ord('y'):
+            choice = 0; break
+
+    if choice == 0:
+        conf_file = projects[pidx]['conf']
+        try:
+            Path(conf_file).unlink()
+        except Exception as e:
+            _show_msg(stdscr, f'Delete failed: {e}')
+    return True
