@@ -53,7 +53,7 @@ def load_projects():
 
 
 def wsm_cli(action, project):
-    wsm_path = Path(__file__).parent / 'wsm'
+    wsm_path = Path(__file__).resolve().parent / 'wsm'
     result = subprocess.run(
         [str(wsm_path), action, project],
         capture_output=True, text=True, timeout=30,
@@ -303,13 +303,8 @@ def main(stdscr):
         h, w = stdscr.getmaxyx()
         stdscr.erase()
 
-        # ── 0. Menu bar ──
-        menu_text = ' Left   File   Command   Options   Right '
-        stdscr.addstr(0, 0, ' ' * (w - 1), curses.color_pair(8))
-        safe_addstr(stdscr, 0, 1, menu_text, curses.color_pair(9))
-
         # ── Panel geometry ──
-        body_y, body_h = 1, h - 3     # below menu, above F-keys
+        body_y, body_h = 0, h - 2     # full height minus F-key bar
         divider_x = max(30, w // 2)    # split point
         left_w = divider_x
         right_w = w - divider_x - 1
