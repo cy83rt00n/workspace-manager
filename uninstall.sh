@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_REPO_DIR="$HOME/.workspace-manager"
+REPO_DIR="$HOME/.workspace-manager"
 CONFIG_DIR="$HOME/.config/workspace"
+BIN_DIR="$HOME/.local/bin"
 
-# Определение режима: терминал или curl|bash
 INTERACTIVE=true
 if [ ! -t 0 ]; then
     INTERACTIVE=false
-    echo "[Pipe Mode] Auto-removing all WSM components without prompts..."
+    echo "[Pipe Mode] Auto-removing all WSM components..."
 fi
 
 echo "========================================="
@@ -16,71 +16,78 @@ echo "  WSM Workspace Manager — Uninstaller"
 echo "========================================="
 echo ""
 
-# 1. Remove init hooks from rc files
+# ── Detect installed version ──────────────────────────────────
+
+DETECTED=""
+
+if [ -f "$HOME/.wsm" ] || [ -f "$HOME/.wsm-manager" ]; then
+    DETECTED="cli"
+elif [ -L "${BIN_DIR}/wsm" ] || [ -f "$HOME/.wsm-complete" ]; then
+    DETECTED="python-curses"
+fi
+
+echo "Detected: ${DETECTED:-unknown}"
+echo ""
+
+# ── Remove shell hooks ──────────────────────────────────────────
+
 remove_hook() {
     local rc_file="$1"
     if [ -f "$rc_file" ]; then
-        if grep -q "source \$HOME/.wsm" "$rc_file" 2>/dev/null; then
-            echo "Removing WSM hook from $rc_file..."
-            sed -i '/# Workspace Manager Hook/d' "$rc_file"
-            sed -i '/source.*\.wsm/d' "$rc_file"
-        fi
+        sed -i '/# Workspace Manager/d' "$rc_file" 2>/dev/null || true
+        sed -i '/export PATH="$HOME\/.local\/bin:$PATH"/d' "$rc_file" 2>/dev/null || true
+        sed -i '/source.*\.wsm-complete/d' "$rc_file" 2>/dev/null || true
+        sed -i '/source.*\.wsm/d' "$rc_file" 2>/dev/null || true
+        echo "  Cleaned $rc_file"
     fi
 }
 
 remove_hook "$HOME/.bashrc"
 remove_hook "$HOME/.zshrc"
 
-# 2. Remove core files
-if [ -f "$HOME/.wsm" ]; then
-    echo "Removing $HOME/.wsm..."
-    rm -f "$HOME/.wsm"
-fi
+# ── Remove CLI files ────────────────────────────────────────────
 
-if [ -f "$HOME/.wsm-manager" ]; then
-    echo "Removing $HOME/.wsm-manager..."
-    rm -f "$HOME/.wsm-manager"
-fi
+for f in "$HOME/.wsm" "$HOME/.wsm-manager" "$HOME/.wsm-complete"; do
+    if [ -f "$f" ]; then
+        echo "Removing $f..."
+        rm -f "$f"
+    fi
+done
 
-# 3. Show how to remove installed system dependencies
-DEPS_FILE="$TARGET_REPO_DIR/.wsm-deps"
-if [ -f "$DEPS_FILE" ]; then
-    echo ""
-    echo "The following packages were installed by WSM installer:"
-    while read -r pkg; do
-        echo "  - $pkg"
-    done < "$DEPS_FILE"
-    echo ""
-    echo "To remove them you can use your package manager, e.g.:"
-    echo "  sudo apt-get remove <package>     (Debian/Ubuntu)"
-    echo "  sudo dnf remove <package>         (Fedora/RHEL)"
-    echo "  sudo pacman -R <package>          (Arch)"
-    echo "  brew uninstall <package>          (macOS)"
-fi
+# ── Remove Python symlinks ──────────────────────────────────────
 
-# 4. Remove deployed repo directory
-if [ -d "$TARGET_REPO_DIR" ]; then
+for bin in wsm wsm-tui; do
+    if [ -L "${BIN_DIR}/${bin}" ]; then
+        echo "Removing ${BIN_DIR}/${bin} symlink..."
+        rm -f "${BIN_DIR}/${bin}"
+    fi
+done
+
+# ── Remove repo directory ──────────────────────────────────────
+
+if [ -d "$REPO_DIR" ]; then
     DEL_REPO="n"
     if $INTERACTIVE; then
-        read -p "Delete $TARGET_REPO_DIR? [y/N]: " DEL_REPO
+        read -r -p "Delete $REPO_DIR? [y/N]: " DEL_REPO
     else
         DEL_REPO="y"
     fi
     if [[ "$DEL_REPO" =~ ^[Yy]$ ]]; then
-        echo "Removing $TARGET_REPO_DIR..."
-        rm -rf "$TARGET_REPO_DIR"
+        echo "Removing $REPO_DIR..."
+        rm -rf "$REPO_DIR"
     else
         echo "Skipped."
     fi
 else
-    echo "$TARGET_REPO_DIR not found — skipped."
+    echo "$REPO_DIR not found — skipped."
 fi
 
-# 5. Optionally remove configs
+# ── Remove configs ─────────────────────────────────────────────
+
 if [ -d "$CONFIG_DIR" ]; then
     DEL_CONF="n"
     if $INTERACTIVE; then
-        read -p "Delete all project configs in $CONFIG_DIR? [y/N]: " DEL_CONF
+        read -r -p "Delete project configs in $CONFIG_DIR? [y/N]: " DEL_CONF
     else
         DEL_CONF="y"
     fi
@@ -96,4 +103,4 @@ fi
 
 echo ""
 echo "Uninstall complete."
-echo "Run: source ~/.bashrc   (or: source ~/.zshrc)"
+echo "Run: source ~/.bashrc"

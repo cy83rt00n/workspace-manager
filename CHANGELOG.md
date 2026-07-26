@@ -1,29 +1,14 @@
-# Changelog
+# Changelog — main branch
 
-Commits since `origin/main`:
+## Changed
 
-```
-46a688b chore: add CHANGELOG.md, update AGENT.md and TASKS.md
-4b8ad13 fix: resolve bugs found during code audit
-8685803 chore: add .gitignore, AGENT.md, TASKS.md
-```
+- **Repository restructured** — Branch-as-a-Product strategy applied
+- **`README.md`** — Rewritten as hub: version table, install options, Development section with PR guidelines
+- **`install.sh`** — New universal installer: interactive version choice (CLI / Python-curses), delegates to branch-specific installer
+- **`uninstall.sh`** — New universal uninstaller: auto-detects installed version, cleans up all components
+- **`.github/PULL_REQUEST_TEMPLATE.md`** — PR template with branch routing instructions
 
-## Changes (8 files, +213/−84)
+## Removed
 
-### Bugfixes
-
-- **`.wsm`** — Fixed `connect|c)` block referencing undefined `REMOTE_PATH` / `EDITOR_CMD` variables; now uses already-parsed `remote_path` / `editor_cmd`
-- **`install.sh`** — Added `mkdir -p $TARGET_REPO_DIR` before deps check to prevent crash when `.wsm-deps` is written before directory creation
-
-### Project structure
-
-- **`demo.conf` → `demo.config.toml`** — Renamed demo config to `.toml` extension
-- **`.gitignore`** — Added (Python cache, swap files, IDE dirs, AGENT.md, TASKS.md)
-- **`AGENT.md`** — Added and updated agent operational rules; removed from git tracking (now in `.gitignore`)
-- **`TASKS.md`** — Added task tracking file, all tasks completed; removed from git tracking (now in `.gitignore`)
-- **`CHANGELOG.md`** — Added project changelog
-- **`__pycache__/`** — Removed orphan Python bytecode
-
-### Documentation
-
-- **`README.md`** — Rewritten: added `connect` command docs, `connect vs run` table, cleaner formatting, reference to `demo.config.toml`
+- **`.wsm`**, **`.wsm-manager`** — Bash code moved to `cli` branch
+- Old **`install.sh`**, **`uninstall.sh`**, **`README.md`**, **`CHANGELOG.md`** — Replaced
