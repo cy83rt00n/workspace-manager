@@ -103,6 +103,18 @@ wsm() {
                 echo "Project directory is not mounted."
             fi
             ;;
+        connect|c)
+                    local ssh_alias="${REMOTE_PATH%%:*}"
+                    local remote_dir="${REMOTE_PATH#*:}"
+
+                    echo -n "Checking network for native SSH Remoting..."
+                    _wsm_check_net "$ssh_alias" || return 1
+                    echo " [OK]"
+
+                    echo "Launching Zed Native SSH Server on $ssh_alias..."
+                    # Вызов встроенного в Zed протокола удаленного проекта
+                    zed "ssh://${ssh_alias}${remote_dir}" >/dev/null 2>&1 &
+                    ;;
         *)
             echo "Unknown command: $cmd. Use: mount, unmount, run" && return 1
             ;;
@@ -124,7 +136,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
     _wsm_bash_autocomplete() {
         local cur="${COMP_WORDS[COMP_CWORD]}"
         if [ "$COMP_CWORD" -eq 1 ]; then
-            COMPREPLY=($(compgen -W "mount unmount run m u r help" -- "$cur"))
+            COMPREPLY=($(compgen -W "mount unmount run connect m u r c help" -- "$cur"))
         elif [ "$COMP_CWORD" -eq 2 ]; then
             COMPREPLY=($(compgen -W "$(_wsm_complete_logic)" -- "$cur"))
         fi
@@ -133,7 +145,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
 elif [ -n "${ZSH_VERSION:-}" ]; then
     _wsm_zsh_autocomplete() {
         local -a commands projects
-        commands=(mount m unmount u run r help)
+        commands=(mount m unmount u run r connect c help)
         projects=(${(f)"$(_wsm_complete_logic)"})
         if (( CURRENT == 2 )); then
             _describe -t commands 'wsm commands' commands
