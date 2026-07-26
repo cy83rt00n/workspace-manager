@@ -93,7 +93,8 @@ if [ -d "$CONFIG_DIR" ]; then
     if $INTERACTIVE; then
         read -r -p "Delete project configs in $CONFIG_DIR? [y/N]: " DEL_CONF
     else
-        DEL_CONF="y"
+        DEL_CONF="n"
+        echo "[Pipe Mode] Keeping project configs in $CONFIG_DIR"
     fi
     if [[ "$DEL_CONF" =~ ^[Yy]$ ]]; then
         echo "Removing $CONFIG_DIR..."
