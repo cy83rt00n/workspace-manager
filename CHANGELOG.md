@@ -25,3 +25,4 @@
 
 - **`README.md`** — Rewritten for cli branch: Bash-only docs, cli-specific install/uninstall URLs
 - **`install.sh`** — Added `mkdir -p` before deps check, clone with `--branch cli`, updated messages
+- **`install.sh`**, **`uninstall.sh`** — Hooks wrapped in marker comments (`>>> WSM BEGIN >>>` / `<<< WSM END <<<`), uninstall uses sed range for atomic removal
