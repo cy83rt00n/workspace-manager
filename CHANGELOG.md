@@ -12,3 +12,7 @@
 
 - **`demo.conf`** — Duplicate config, replaced by `demo.config.toml`
 - **`AGENT.md`**, **`TASKS.md`** — Removed from git tracking (now in `.gitignore`)
+
+## Fixed
+
+- **`.wsm`** — Fixed `connect|c)` referencing undefined `REMOTE_PATH`/`EDITOR_CMD`; now uses `remote_path`/`editor_cmd`
