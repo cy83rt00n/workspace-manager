@@ -101,9 +101,18 @@ def safe_addstr(win, y, x, text, color=0):
     h, w = win.getmaxyx()
     if y < 0 or y >= h or x >= w:
         return
-    text = text[:w - x - 1]
+    # Block only absolute bottom-right corner — not every right edge
+    if y == h - 1:
+        text = text[:w - x - 1] if w - x - 1 >= 0 else ''
+    else:
+        text = text[:w - x] if w - x >= 0 else ''
     if text:
         win.addstr(y, x, text, color)
+
+
+def _match_key(key, *chars):
+    """Match getch() code against any of the given characters (any layout)."""
+    return key in {ord(c) for c in chars}
 
 
 def draw_box(win, y, x, h, w, title='', color=0):
@@ -345,7 +354,7 @@ def main(stdscr):
 
         if w < MIN_W or h < MIN_H:
             key = too_small_dialog(stdscr)
-            if key in (ord('q'), ord('Q'), 27):
+            if key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й'):
                 break
             stdscr.erase(); stdscr.refresh()
             needs_refresh = True
@@ -398,8 +407,11 @@ def main(stdscr):
 
                 prefix = '▶' if sel else ' '
                 name = proj['name'][:inner_w - 6]
+                # Fixed layout: prefix + name (padded) + space + icon at right edge
+                pad = inner_w - 5 - len(name)
+                if pad < 1: pad = 1
                 safe_addstr(stdscr, y, inner_x + 1,
-                            f'{prefix} {name:<{inner_w - 4}} {icon}', line_attr)
+                            f'{prefix} {name}{" " * pad}{icon}', line_attr)
 
             summ = f' {len(projects)} project(s) '
             safe_addstr(stdscr, body_y + body_h - 2, 1, summ[:left_w - 2], curses.color_pair(6))
@@ -479,7 +491,7 @@ def main(stdscr):
         # ── Input ──
         key = stdscr.getch()
 
-        if key in (ord('q'), curses.KEY_F10, 27):
+        if key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й') or key == curses.KEY_F10:
             break
         if key == curses.KEY_F1:
             help_dialog(stdscr); needs_refresh = True; continue
@@ -493,16 +505,16 @@ def main(stdscr):
         # Navigation
         num_ra = 7  # right-panel action count (3 context + 4 tools)
         if focus == 'left':
-            if key in (curses.KEY_DOWN, ord('j')):
+            if key in (curses.KEY_DOWN,) or _match_key(key, 'j', 'о'):
                 pidx = min(pidx + 1, len(projects) - 1) if projects else 0
-            elif key in (curses.KEY_UP, ord('k')):
+            elif key in (curses.KEY_UP,) or _match_key(key, 'k', 'л'):
                 pidx = max(pidx - 1, 0)
             elif key == 10 and projects:
                 focus = 'right'; aidx = 0
         elif focus == 'right' and projects:
-            if key in (curses.KEY_DOWN, ord('j')):
+            if key in (curses.KEY_DOWN,) or _match_key(key, 'j', 'о'):
                 aidx = min(aidx + 1, num_ra - 1)
-            elif key in (curses.KEY_UP, ord('k')):
+            elif key in (curses.KEY_UP,) or _match_key(key, 'k', 'л'):
                 aidx = max(aidx - 1, 0)
             elif key == 10:
                 needs_refresh |= _do_action(aidx, projects, pidx, stdscr)
@@ -516,13 +528,17 @@ def _handle_key(key, projects, pidx, _aidx, _focus, stdscr):
         curses.KEY_F3: 'mount', curses.KEY_F4: 'run', curses.KEY_F5: 'connect',
         curses.KEY_F6: 'unmount', curses.KEY_F7: 'new', curses.KEY_F8: 'keys',
         curses.KEY_F9: 'desktop', curses.KEY_F10: 'quit',
-        curses.KEY_DC: 'delete',  # Delete key
+        curses.KEY_DC: 'delete',
     }
-    singles = {
-        ord('m'): 'mount', ord('r'): 'run', ord('s'): 'connect',
-        ord('u'): 'unmount', ord('c'): 'new', ord('k'): 'keys', ord('d'): 'desktop',
-        ord('x'): 'delete',
-    }
+    singles = {}
+    # Single-key shortcuts with Russian layout fallbacks
+    for ch, act in [
+        ('mMьЬ', 'mount'), ('rRкК', 'run'), ('sSыЫ', 'connect'),
+        ('uUгГ', 'unmount'), ('cCсС', 'new'), ('kKлЛ', 'keys'),
+        ('dDвВ', 'desktop'), ('xXчЧ', 'delete'),
+    ]:
+        for c in ch:
+            singles[ord(c)] = act
     action = fkeys.get(key) or singles.get(key)
     if action:
         return _do_global_action(action, projects, pidx, stdscr)
@@ -652,15 +668,15 @@ def _delete_config(projects, pidx, stdscr):
         win.refresh()
 
         key = win.getch()
-        if key in (curses.KEY_LEFT, ord('h')):
+        if key in (curses.KEY_LEFT,) or _match_key(key, 'h', 'H', 'р', 'Р'):
             choice = 0
-        elif key in (curses.KEY_RIGHT, ord('l')):
+        elif key in (curses.KEY_RIGHT,) or _match_key(key, 'l', 'L', 'д', 'Д'):
             choice = 1
         elif key == 10:
             break
-        elif key in (27, ord('q'), ord('n')):
+        elif key in (27,) or _match_key(key, 'q', 'Q', 'й', 'Й', 'n', 'N', 'т', 'Т'):
             choice = 1; break
-        elif key == ord('y'):
+        elif _match_key(key, 'y', 'Y', 'н', 'Н'):
             choice = 0; break
 
     if choice == 0:
