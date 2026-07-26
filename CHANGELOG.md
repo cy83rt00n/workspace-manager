@@ -2,23 +2,25 @@
 
 ## Added
 
-- **`AGENT.md`** — Agent operational rules and coding standards
-- **`TASKS.md`** — Central task tracking file
-- **`.gitignore`** — Python cache, swap files, IDE dirs, AGENT.md, TASKS.md
-- **`CHANGELOG.md`** — Project changelog
-- **`demo.config.toml`** — TOML config template for new projects
-- **`.wsm-complete`** — Bash & Zsh autocomplete (commands + project names)
-- **Autocomplete hooks** — Injected into `.bashrc` / `.zshrc` during install, removed during uninstall
+- **`.wsm-complete`** — Bash & Zsh autocomplete
+- **Autocomplete hooks** — Injected during install, removed during uninstall
 
-## Removed
+## Fixed
 
-- **`demo.conf`** — Duplicate config, replaced by `demo.config.toml`
-- **`AGENT.md`**, **`TASKS.md`** — Removed from git tracking (now in `.gitignore`)
+- **`install.sh`** — Copies `demo.config.toml` → `~/.config/workspace/demo.config.toml` during install
+- **`install.sh`** — CLI/TUI choice now works in pipe mode via /dev/tty
+- **`install.sh`**, **`uninstall.sh`** — Hooks wrapped in markers, uninstall uses sed range; pipe mode preserves configs
+- **`wsm_render.py`** — Alias always included in form result, enabling config rename
+- **`wsm_core.py`** — `validate_config` expands `~` to home directory
+- **`wsm_tui.py`** — `config_form` loops back to form on validation error instead of closing
 
 ## Changed
 
-- **`README.md`** — Rewritten for python-curses branch: Python-only docs, CLI+TUI commands, hotkeys table, python-curses-specific install/uninstall URLs
-- **`install.sh`** — Copies `demo.config.toml` → `~/.config/workspace/demo.conf` during install so TUI has a default project immediately
-- **`wsm_render.py`** — `render_form` now always includes alias field (even if empty), enabling config rename in edit mode
-- **`install.sh`** — Added `mkdir -p` before deps check, clone with `--branch python-curses`, updated messages
-- **`install.sh`**, **`uninstall.sh`** — Hooks wrapped in marker comments (`>>> WSM BEGIN >>>` / `<<< WSM END <<<`), uninstall uses sed range for atomic removal
+- **`README.md`** — Rewritten for python-curses branch
+- **`install.sh`** — `mkdir -p` before deps, clone with `--branch python-curses`
+- **`wsm_core.py`, `wsm_cli.py`, `wsm_tui.py`, `install.sh`** — Config extension: `.conf` → `.config.toml`
+
+## Removed
+
+- **`demo.conf`** — Replaced by `demo.config.toml`
+- **`AGENT.md`**, **`TASKS.md`** — Untracked (now in `.gitignore`)
