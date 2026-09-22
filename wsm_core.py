@@ -68,7 +68,7 @@ def load_projects():
     if not CONF_DIR.exists():
         return projects
     for conf in sorted(CONF_DIR.glob('*.config.toml')):
-        name = conf.stem
+        name = conf.name[:-len('.config.toml')]
         local_mount = parse_toml(conf, 'local_mount')
         remote_path = parse_toml(conf, 'remote_path')
         editor_cmd = parse_toml(conf, 'editor_cmd')

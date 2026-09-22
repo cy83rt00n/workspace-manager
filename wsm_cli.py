@@ -141,7 +141,8 @@ def list_projects():
     if not CONF_DIR.exists():
         return []
     return sorted(
-        f.stem for f in CONF_DIR.glob('*.config.toml') if f.is_file()
+        f.name[:-len('.config.toml')]
+        for f in CONF_DIR.glob('*.config.toml') if f.is_file()
     )
 
 
