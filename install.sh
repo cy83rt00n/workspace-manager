@@ -137,16 +137,16 @@ echo ""
 echo "Select default interface for 'wsm' command:"
 echo "  1) CLI  — fast terminal commands"
 echo "  2) TUI  — interactive Midnight Commander style"
-echo -n "Choice [1]: "
+echo -n "Choice [2]: "
 if [ -t 0 ]; then
     read -r choice
 elif [ -e /dev/tty ]; then
     read -r choice < /dev/tty
 else
     echo ""
-    choice="1"
+    choice="2"
 fi
-choice="${choice:-1}"
+choice="${choice:-2}"
 
 case "$choice" in
     2)
