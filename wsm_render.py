@@ -136,7 +136,7 @@ def render_form(stdscr, title, fields, initial=None):
     fields: list of (label, key).  initial: dict of key->value."""
     max_h, max_w = stdscr.getmaxyx()
     dh = min(len(fields) * 3 + 6, max_h - 2)
-    dw = min(62, max_w - 2)
+    dw = min(110, max_w - 2)
     y0 = max(0, (max_h - dh) // 2)
     x0 = max(0, (max_w - dw) // 2)
     win = curses.newwin(dh, dw, y0, x0)
@@ -145,7 +145,10 @@ def render_form(stdscr, title, fields, initial=None):
 
     values = [initial.get(key, '') if initial else '' for _, key in fields]
     cur = 0
+    pos = [len(v) for v in values]
+    scroll = [0] * len(fields)
     msg = ''
+    field_w = max(8, dw - 8)
 
     while True:
         win.erase()
@@ -153,11 +156,21 @@ def render_form(stdscr, title, fields, initial=None):
         for i, (label, _) in enumerate(fields):
             y = 2 + i * 3
             safe_addstr(win, y, 3, label)
-            display = values[i][:dw - 10]
-            if i == cur:
-                display += '█'
+            p = pos[i]
+            sc = scroll[i]
+            if p < sc:
+                sc = p
+            elif p >= sc + field_w:
+                sc = p - field_w + 1
+            scroll[i] = sc
+            seg = values[i][sc:sc + field_w]
             attr = curses.A_REVERSE if i == cur else 0
-            safe_addstr(win, y + 1, 3, f'  {display}', attr)
+            safe_addstr(win, y + 1, 3, f'  {seg}', attr)
+            if i == cur:
+                try:
+                    win.move(y + 1, 5 + (p - sc))
+                except curses.error:
+                    pass
         safe_addstr(win, dh - 2, 2, 'Tab:next  Enter:save  Esc:cancel')
         if msg:
             safe_addstr(win, dh - 3, 2, msg, curses.color_pair(6))
@@ -168,6 +181,8 @@ def render_form(stdscr, title, fields, initial=None):
             curses.curs_set(0); return None
         elif key == 9:
             cur = (cur + 1) % len(fields); msg = ''
+        elif key == curses.KEY_BTAB:
+            cur = (cur - 1) % len(fields); msg = ''
         elif key == 10:
             result = {}
             for (_, fkey), val in zip(fields, values):
@@ -176,10 +191,27 @@ def render_form(stdscr, title, fields, initial=None):
                 result[fkey] = val
             curses.curs_set(0)
             return result
+        elif key == curses.KEY_LEFT:
+            pos[cur] = max(0, pos[cur] - 1); msg = ''
+        elif key == curses.KEY_RIGHT:
+            pos[cur] = min(len(values[cur]), pos[cur] + 1); msg = ''
+        elif key == curses.KEY_HOME or key == 1:
+            pos[cur] = 0; msg = ''
+        elif key == curses.KEY_END or key == 5:
+            pos[cur] = len(values[cur]); msg = ''
         elif key in (curses.KEY_BACKSPACE, 127, 8):
-            values[cur] = values[cur][:-1]; msg = ''
+            if pos[cur] > 0:
+                values[cur] = values[cur][:pos[cur] - 1] + values[cur][pos[cur]:]
+                pos[cur] -= 1
+            msg = ''
+        elif key == curses.KEY_DC:
+            if pos[cur] < len(values[cur]):
+                values[cur] = values[cur][:pos[cur]] + values[cur][pos[cur] + 1:]
+            msg = ''
         elif 32 <= key <= 126:
-            values[cur] += chr(key); msg = ''
+            values[cur] = values[cur][:pos[cur]] + chr(key) + values[cur][pos[cur]:]
+            pos[cur] += 1
+            msg = ''
 
 
 def confirm_dialog(stdscr, title, lines):
