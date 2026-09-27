@@ -29,3 +29,5 @@
 - **Go tooling** — `Makefile` (fmt/vet/test/coverage/build/clean, reproducible build via `-trimpath` + `-ldflags -X …/internal/version.Version`), CI matrix (ubuntu/macos + 4 cross-builds, `CGO_ENABLED=0`), `internal/version` package
 
 - **`internal/config`** — ported config domain (parse/validate/save/discovery/delete guards/desktop snippet), 53 table-driven tests, first-match parse semantics corrected after empirical check
+
+- **`internal/system` + `internal/workspace`** — typed process/mount/net adapters and use-case engine (mount/unmount/run/connect/delete), injected callbacks, ExitError codes; ADR-001 fixes D3/D4/D6/D8 applied
