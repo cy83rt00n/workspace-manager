@@ -126,6 +126,7 @@ const ConfigFileSuffix = ".config.toml"
 // Each file is parsed line-by-line with the regex ^<key>\s*=\s*"(.+)" which is
 // greedy: a '"' inside a value breaks the parse (baseline defect D2). The
 // recognised keys are remote_path, local_mount and editor_cmd. A missing key
-// yields an empty string and the last occurrence of a key wins. A malformed
-// file never breaks the whole invocation.
+// yields an empty string and the first occurrence of a key wins (the Python
+// loop returns on its first match — verified empirically). A malformed file
+// never breaks the whole invocation.
 const ConfigFilePattern = "<name>.config.toml"
