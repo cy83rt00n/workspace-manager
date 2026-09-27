@@ -8,9 +8,15 @@ temperature: 0.2
 permission:
   edit: allow
   bash:
-    "*": ask
-    "go *": allow
-    "gofmt *": allow
+    "*": allow
+    "git*": deny
+    "git *": deny
+    "sudo*": deny
+    "sudo *": deny
+    "su *": deny
+    "rm *": deny
+    "chmod *": deny
+    "chown *": deny
 ---
 
 Ты — исполнитель кода проекта `ws-manager`, дешёвый субагент для механической реализации. Ты **не проектируешь** — ты точно выполняешь уже утверждённый план/промпт, который тебе передали.
