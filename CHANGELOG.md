@@ -18,3 +18,11 @@
 - **`uninstall.sh`** — Sed now uses range deletion to prevent orphan if/fi
 - **`uninstall.sh`** — Detection includes marker-based fallback
 - **`uninstall.sh`** — Pipe mode keeps user configs (defaults to "n" instead of "y")
+
+## go-lang (Go migration — baseline stage, not released)
+
+- **Go module established** — `go.mod`: module `github.com/cy83rt00n/workspace-manager`, go 1.22, zero dependencies
+- **`internal/baseline`** — pinned Python CLI contract as self-documenting Go tables: 12 command forms, exit codes {0,1,2}, message templates, baseline defects D1–D17
+- **Characterization tests** — 40 table-driven cases spawning the reference `wsm_cli.py` under an isolated `HOME` (`t.TempDir()`), 15s bounded contexts, python3-absence skip
+- **Reference snapshot** — `internal/baseline/testdata/reference/{wsm_cli.py,wsm_core.py}` byte-for-byte from `python-curses` @121cdfd
+- **`.opencode/agent/prompt-manager.md`** — hardened: `bash` denied, edits limited to `.ai/` (post-incident fix)
