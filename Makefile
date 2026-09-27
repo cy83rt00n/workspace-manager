@@ -6,7 +6,7 @@ CGO_ENABLED ?= 0
 LDFLAGS = -X github.com/cy83rt00n/workspace-manager/internal/version.Version=$(VERSION) -s -w
 BINARY  = wsm
 
-.PHONY: fmt vet test coverage build clean
+.PHONY: fmt vet test coverage build clean smoke
 
 fmt:
 	gofmt -l .
@@ -26,3 +26,6 @@ build:
 
 clean:
 	rm -rf bin coverage.out
+
+smoke:
+	go test -count=1 -run 'TestSmoke' ./internal/smoketest/
