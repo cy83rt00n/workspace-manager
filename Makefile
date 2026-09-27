@@ -23,6 +23,8 @@ coverage:
 build:
 	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -trimpath -ldflags "$(LDFLAGS)" -o bin/wsm-go ./cmd/wsm
+	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) GOARCH=$(GOARCH) \
+		go build -trimpath -ldflags "$(LDFLAGS)" -o bin/wsm-tui-go ./cmd/wsm-tui
 
 clean:
 	rm -rf bin coverage.out
