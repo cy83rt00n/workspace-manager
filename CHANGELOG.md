@@ -33,3 +33,5 @@
 - **`internal/system` + `internal/workspace`** — typed process/mount/net adapters and use-case engine (mount/unmount/run/connect/delete), injected callbacks, ExitError codes; ADR-001 fixes D3/D4/D6/D8 applied
 
 - **`cmd/wsm`** — CLI с паритетом контракта Python (алиасы, коды выхода, каталог сообщений, спиннер); бинарь `bin/wsm-go` через `make build`; ADR-001 D5/D17 применены
+
+- **`internal/smoketest` + `make smoke`** — безопасные реальные smoke-тесты (mountpoint/check-net), ручной runbook для disposable-цели в .ai/research
