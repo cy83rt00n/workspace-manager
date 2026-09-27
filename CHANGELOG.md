@@ -35,3 +35,5 @@
 - **`cmd/wsm`** — CLI с паритетом контракта Python (алиасы, коды выхода, каталог сообщений, спиннер); бинарь `bin/wsm-go` через `make build`; ADR-001 D5/D17 применены
 
 - **`internal/smoketest` + `make smoke`** — безопасные реальные smoke-тесты (mountpoint/check-net), ручной runbook для disposable-цели в .ai/research
+
+- **`internal/tui`** — рендер-примитивы, палитра init_pair 1–10, диалоги и формы (string-view, без терминала); первая внешняя зависимость lipgloss v1.1.0 по ADR-002
