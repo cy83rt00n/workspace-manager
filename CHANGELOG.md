@@ -37,3 +37,6 @@
 - **`internal/smoketest` + `make smoke`** — безопасные реальные smoke-тесты (mountpoint/check-net), ручной runbook для disposable-цели в .ai/research
 
 - **`internal/tui`** — рендер-примитивы, палитра init_pair 1–10, диалоги и формы (string-view, без терминала); первая внешняя зависимость lipgloss v1.1.0 по ADR-002
+
+- **`internal/tui` (модель) + `cmd/wsm-tui`** — NC-интерфейс на bubbletea v1.1.2, действия через тот же Engine; Makefile собирает оба бинаря (`wsm-go`, `wsm-tui-go`)
+- **Зависимость**: bubbletea v1.1.2 (latest v1.3.10 требует go 1.24 — pin под go 1.22)
