@@ -108,6 +108,26 @@ Always re‑verify `./TASKS.md` dynamically before generating code blocks, updat
 - `wsm_tui.py` is a curses client; `wsm_render.py` contains its rendering primitives.
 - The public compatibility contract is: `~/.config/workspace/*.config.toml`, commands `wsm` and `wsm-tui`, the existing command aliases, installer paths, and non-zero exit codes on operational failures.
 
+### Agent Roster
+- `primary` (`bot_hub/deepseek-v4-pro-0813`, high effort): designs, decomposes stages, writes briefs, and reviews everything against the release gates. Owns architecture and commits.
+- `prompt-manager` (`bot_hub/deepseek-v4-pro-0813`, medium effort): turns briefs into self-contained prompts plus acceptance checklists. Works only in `.ai/`.
+- `executor` (`bot_hub/deepseek-v4-flash-vision-exp`, low effort): mechanically implements an approved prompt — ports functions, writes table-driven tests, fixes build/test errors, runs `go test`. Never makes architectural decisions, never commits.
+
+### Workflow Pipeline
+```
+[primary]  plan -> brief -> acceptance criteria (from AGENTS.md stages)
+   |
+   v
+[prompt-manager]  brief -> self-contained prompt + checklist
+   |
+   v
+[executor]  implement + go test -> returns diff + report (no commit)
+   |
+   v
+[primary]  review vs release gates -> fixes via executor -> commit
+```
+The expensive model thinks; the executor writes. Every executor result is reviewed by `primary` against the `Release Gates` before any commit. If `executor` hits an architectural question or a gap in the prompt, it must stop and report it rather than improvise.
+
 ### Working With AI
 - Before a non-trivial change, identify the affected public contract, relevant modules, failure modes, and a verification command. Keep the implementation scope limited to the approved task.
 - Keep the core independent of CLI and TUI. Process execution, filesystem access, and terminal rendering must be injected behind small interfaces so they can be tested without SSHFS, network access, or a real terminal.
