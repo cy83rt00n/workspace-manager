@@ -27,3 +27,5 @@
 - **Reference snapshot** — `internal/baseline/testdata/reference/{wsm_cli.py,wsm_core.py}` byte-for-byte from `python-curses` @121cdfd
 - **`.opencode/agent/prompt-manager.md`** — hardened: `bash` denied, edits limited to `.ai/` (post-incident fix)
 - **Go tooling** — `Makefile` (fmt/vet/test/coverage/build/clean, reproducible build via `-trimpath` + `-ldflags -X …/internal/version.Version`), CI matrix (ubuntu/macos + 4 cross-builds, `CGO_ENABLED=0`), `internal/version` package
+
+- **`internal/config`** — ported config domain (parse/validate/save/discovery/delete guards/desktop snippet), 53 table-driven tests, first-match parse semantics corrected after empirical check
