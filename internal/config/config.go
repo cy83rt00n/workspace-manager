@@ -107,6 +107,14 @@ func parseFileValue(path, key string) string {
 	return ""
 }
 
+// FindProject loads the single project named name from dir, using the same
+// rules as findProjectIn: it reads <dir>/<name>.config.toml and returns a
+// Project populated from the three recognised keys. It returns nil when the
+// config file does not exist (no error is produced).
+func FindProject(dir, name string) *Project {
+	return findProjectIn(dir, name)
+}
+
 // findProjectIn loads the single project named name from dir. It reads
 // <dir>/<name>.config.toml and returns a Project populated from the three
 // recognised keys. It returns nil when the config file does not exist.

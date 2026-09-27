@@ -150,6 +150,47 @@ func TestFindProjectIn(t *testing.T) {
 	})
 }
 
+// TestFindProject covers the exported single-project loader. An existing file
+// yields a fully populated Project; a missing name yields nil with no error.
+func TestFindProject(t *testing.T) {
+	t.Run("existing project", func(t *testing.T) {
+		tmp := t.TempDir()
+		content := "remote_path = \"demo-alias:/opt/app\"\nlocal_mount = \"/home/u/.workspace/app\"\neditor_cmd = \"zed\"\n"
+		if err := os.WriteFile(filepath.Join(tmp, "demo"+ConfigSuffix), []byte(content), 0o600); err != nil {
+			t.Fatalf("failed to write fixture: %v", err)
+		}
+
+		got := FindProject(tmp, "demo")
+		if got == nil {
+			t.Fatal("FindProject returned nil for an existing project")
+		}
+		want := Project{
+			Name:       "demo",
+			RemotePath: "demo-alias:/opt/app",
+			LocalMount: "/home/u/.workspace/app",
+			EditorCmd:  "zed",
+			ConfPath:   filepath.Join(tmp, "demo"+ConfigSuffix),
+		}
+		if *got != want {
+			t.Errorf("FindProject = %+v, want %+v", *got, want)
+		}
+	})
+
+	t.Run("missing project yields nil", func(t *testing.T) {
+		tmp := t.TempDir()
+		if got := FindProject(tmp, "nosuchproj"); got != nil {
+			t.Errorf("FindProject = %+v, want nil", *got)
+		}
+	})
+
+	t.Run("empty dir yields nil", func(t *testing.T) {
+		tmp := t.TempDir()
+		if got := FindProject(tmp, ""); got != nil {
+			t.Errorf("FindProject = %+v, want nil", *got)
+		}
+	})
+}
+
 // TestProjects covers discovery: empty existing dir, missing dir (empty and no
 // error), filename ordering, and the suffix filter that excludes non-config
 // files.
