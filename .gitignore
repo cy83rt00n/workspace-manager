@@ -9,3 +9,6 @@ __pycache__/
 .idea/
 AGENT.md
 TASKS.md
+
+# build artifacts
+bin/
