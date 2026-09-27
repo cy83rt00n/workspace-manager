@@ -138,9 +138,10 @@ The expensive model thinks; the executor writes. Every executor result is review
 ### AI Artifact Policy
 - All AI working artifacts must be stored under `.ai/` and must not be committed.
 - When implementation begins, add `.ai/` to the repository-local ignore file `.git/info/exclude`. Do not add it to `.gitignore`: the exclusion is intentionally local.
-- Planned layout: `.ai/briefs/` for approved task briefs, `.ai/adr/` for decisions, `.ai/research/` for investigation notes, `.ai/checklists/` for migration and release evidence, and `.ai/handoffs/` for concise session state.
+- Layout: `.ai/briefs/` for active task briefs (plus `briefs/_template.md`), `.ai/adr/` for decisions, `.ai/research/` for investigation notes, `.ai/checklists/` for active acceptance checklists, and `.ai/handoffs/` for the current session state only.
+- Archive: `.ai/done/{briefs,checklists,handoffs}/` mirrors the active dirs. When an artifact reaches status `done`, move it to the matching `done/` dir and update its path in `.ai/REGISTRY.md`. At session start read only `REGISTRY.md` and the current handoff; consult `done/` only when explicitly referenced. ADRs and research notes are reference knowledge and are never archived.
 - Artifacts must not include secrets, private hostnames, user paths, copied SSH configuration, or generated keys. Reference sensitive values symbolically.
-- This policy is planned only. Do not create `.ai/` or edit `.git/info/exclude` until explicitly authorized.
+- Status: policy is active. `.ai/` exists and is excluded locally via `.git/info/exclude`.
 
 ### Language Decision
 **Recommendation: Go.**
